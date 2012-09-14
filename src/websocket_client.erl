@@ -74,8 +74,8 @@ handle_cast(_Cast, State) ->
 
 
 
-handle_info({send,Data}, #state{socket = Socket} = State) ->
-  gen_tcp:send(Socket,[0, Data, 255]),
+handle_info({send, Msg}, #state{socket = Socket} = State) ->
+  ok = gen_tcp:send(Socket, frame(Msg)),
   {noreply, State};
 
 handle_info(close, State) ->
@@ -167,6 +167,25 @@ initial_request(Host,Path) ->
 	"\r\n"
 	].
 
+opcode_id(text) -> 1;
+opcode_id(binary) -> 2;
+opcode_id(ping) -> 9;
+opcode_id(pong) -> 10.
+
+frame({Opcode,Msg}) ->
+  OpcodeId = opcode_id(Opcode),
+  <<1:1, 0:3, OpcodeId:4, 0:1, (hybi_pack(Msg))/bits>>.
+
+hybi_pack(Message) when byte_size(Message) =< 125 ->
+  <<(byte_size(Message)):7, Message/bits>>;
+
+hybi_pack(Message) when byte_size(Message) =< 65535 ->
+  <<126:7, (byte_size(Message)):16, Message/bits>>;
+
+hybi_pack(Message) when byte_size(Message) > 65535 ->
+  <<127:7, (byte_size(Message)):64, Message/bits>>.
+
+
 
 unframe(<<0, Data/binary>>) ->
   case binary:split(Data, <<255>>) of
@@ -190,6 +209,7 @@ unframe(Rest) ->
 
 opcode(1) -> text;
 opcode(2) -> binary;
+opcode(8) -> close;
 opcode(9) -> ping;
 opcode(10) -> pong.
 

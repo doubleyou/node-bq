@@ -4,6 +4,8 @@
 -export([websocket_init/3, websocket_handle/3,
     websocket_info/3, websocket_terminate/3]).
 
+-export([onopen/1, onmessage/2, onclose/1]).
+
 -export([hello/2,
          move/2,
          chat/2]).
@@ -27,16 +29,18 @@ websocket_init(_TransportName, Req, Opts) ->
     erlang:send_after(1000, self(), population),
     erlang:send_after(1000, self(), move),
     % FIXME: link and monitor
-    Upstream = websocket_client:start_link(proplists:get_value(upstream, Opts), websocket_client, [self()]),
+    {ok, Upstream} = websocket_client:start_link(proplists:get_value(upstream, Opts), ?MODULE, [self()]),
     {ok, Req, #state{upstream = Upstream}}.
 
 websocket_handle({text, Msg}, Req, #state{upstream = Upstream} = State) ->
-    websocket_client:write(Upstream, Msg),
-    [Cmd | Rest] = mochijson2:decode(Msg),
-    CmdAtom = cmd_atom(Cmd),
-    lager:info("Got a message: ~p ~p~n", [CmdAtom, Rest]),
-    {Reply, NewState} = ?MODULE:CmdAtom(Rest, State),
-    {reply, {text, mochijson2:encode(Reply)}, Req, NewState}.
+    websocket_client:write(Upstream, {text, Msg}),
+    lager:debug("Text from browser: ~p", [Msg]),
+    {ok, Req, State}.
+    % [Cmd | Rest] = mochijson2:decode(Msg),
+    % CmdAtom = cmd_atom(Cmd),
+    % lager:info("Got a message: ~p ~p~n", [CmdAtom, Rest]),
+    % {Reply, NewState} = ?MODULE:CmdAtom(Rest, State),
+    % {reply, {text, mochijson2:encode(Reply)}, Req, NewState}.
 
 websocket_info(accept_client, Req, State) ->
     {reply, {text, <<"go">>}, Req, State};
@@ -46,6 +50,9 @@ websocket_info(population, Req, State) ->
 websocket_info(move, Req, State) ->
     {Reply, NewState} = move([0, 0], State),
     reply(Reply, Req, NewState);
+websocket_info({text, Text}, Req, State) ->
+    lager:debug("Text from node: ~p", [Text]),
+    {reply, {text, Text},Req, State};
 websocket_info(Msg, Req, State) ->
     reply(Msg, Req, State).
 
@@ -81,3 +88,27 @@ cmd_atom(26) ->
 
 reply(Msg, Req, State) ->
     {reply, {text, mochijson2:encode(Msg)}, Req, State}.
+
+
+
+onopen([Pid]) ->
+  lager:debug("Upstream connected"),
+  {ok, Pid}.
+
+onmessage({close, Code}, Pid) ->
+    % Pid ! {close, Code},
+    lager:debug("Closing received from node: ~p", [Code]),
+    {ok, Pid};
+
+onmessage({text, Message}, Pid) ->
+  % lager:debug("Text from node: ~s", [Message]),
+  Pid ! {text, Message},
+  {ok, Pid};
+
+onmessage({binary, Message}, Pid) ->
+  lager:debug("Bin from node: ~p", [erlang:binary_to_term(Message)]),
+  Pid ! {binary, Message},
+  {ok, Pid}.
+
+onclose(Pid) ->
+  {ok, Pid}.

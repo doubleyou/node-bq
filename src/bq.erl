@@ -9,7 +9,6 @@ start() ->
     application:start(bq),
     application:start(mimetypes),
     
-     lager:set_loglevel(lager_console_backend, debug),
 
     Dispatch = [
         {'_', [
@@ -28,4 +27,7 @@ start() ->
     cowboy:start_listener(bq_http_server, 10,
         cowboy_tcp_transport, [{port, 8000}],
         cowboy_http_protocol, [{dispatch, Dispatch}]
-    ).
+    ),
+    lager:set_loglevel(lager_console_backend, debug),
+    ok.
+
