@@ -35,12 +35,23 @@ websocket_init(_TransportName, Req, Opts) ->
 websocket_handle({text, Msg}, Req, #state{upstream = Upstream} = State) ->
     websocket_client:write(Upstream, {text, Msg}),
     lager:debug("Text from browser: ~p", [Msg]),
-    {ok, Req, State}.
-    % [Cmd | Rest] = mochijson2:decode(Msg),
-    % CmdAtom = cmd_atom(Cmd),
-    % lager:info("Got a message: ~p ~p~n", [CmdAtom, Rest]),
-    % {Reply, NewState} = ?MODULE:CmdAtom(Rest, State),
-    % {reply, {text, mochijson2:encode(Reply)}, Req, NewState}.
+    
+    case Msg of
+        <<"go">> ->    
+            {ok, Req, State};
+        _ ->            
+            [Cmd | Rest] = mochijson2:decode(Msg),
+            CmdAtom = cmd_atom(Cmd),
+            % FIXME: here is failing something
+            % {Reply, NewState} = case erlang:function_exported(?MODULE, CmdAtom, 2) of
+            %     true -> ?MODULE:CmdAtom(Rest, State);
+            %     false -> {undefined, State}
+            % end,
+            {Reply, NewState} = {undefined, State},
+            lager:info("Cmd: ~p(~w) -> ~w~n", [CmdAtom, Rest, Reply]),
+            % {reply, {text, mochijson2:encode(Reply)}, Req, NewState}.
+            {ok, Req, NewState}
+    end.
 
 websocket_info(accept_client, Req, State) ->
     {reply, {text, <<"go">>}, Req, State};
@@ -77,14 +88,11 @@ chat(Cmd, State) ->
     lager:info("Chat message: ~p", [Cmd]),
     {[], State}.
 
-cmd_atom(0) ->
-    hello;
-cmd_atom(4) ->
-    move;
-cmd_atom(11) ->
-    chat;
-cmd_atom(26) ->
-    check.
+cmd_atom(N) -> 
+    lists:nth(N+1, [hello, welcome, spawn, despawn, move, lootmove, aggro, attack, hit,
+    hurt, health, 11, loot, equip, drop, teleport, damage, population, kill, list,
+    who, zone, destroy, hp, blink, open, check]).
+
 
 reply(Msg, Req, State) ->
     {reply, {text, mochijson2:encode(Msg)}, Req, State}.
