@@ -7,9 +7,21 @@ start() ->
     application:start(gproc),
     application:start(cowboy),
     application:start(bq),
+    application:start(mimetypes),
 
     Dispatch = [
-        {'_', [{'_', bq_http, []}]}
+        {'_', [
+          {[], cowboy_http_static, [
+            {directory, <<"node/client">>},
+            {mimetypes, [{<<".html">>,[<<"text/html">>]}]},
+            {file, <<"index.html">>}
+          ]},
+          {['...'], cowboy_http_static, [
+            {directory, <<"node/">>},
+            {mimetypes, {fun mimetypes:path_to_mimes/2, default}}
+          ]},
+          {'_', bq_http, []}
+        ]}
     ],
 
     cowboy:start_listener(bq_http_server, 10,
