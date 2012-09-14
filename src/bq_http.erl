@@ -9,6 +9,7 @@
          chat/2]).
 
 -record(state, {
+    upstream,
     logged_in = false,
     armor = 21,
     weapon = 60,
@@ -21,13 +22,16 @@
 init({tcp, http}, _Req, _Opts) ->
     {upgrade, protocol, cowboy_http_websocket}.
 
-websocket_init(_TransportName, Req, _Opts) ->
+websocket_init(_TransportName, Req, Opts) ->
     self() ! accept_client,
     erlang:send_after(1000, self(), population),
     erlang:send_after(1000, self(), move),
-    {ok, Req, #state{}}.
+    % FIXME: link and monitor
+    Upstream = websocket_client:start_link(proplists:get_value(upstream, Opts), websocket_client, [self()]),
+    {ok, Req, #state{upstream = Upstream}}.
 
-websocket_handle({text, Msg}, Req, State) ->
+websocket_handle({text, Msg}, Req, #state{upstream = Upstream} = State) ->
+    websocket_client:write(Upstream, Msg),
     [Cmd | Rest] = mochijson2:decode(Msg),
     CmdAtom = cmd_atom(Cmd),
     lager:info("Got a message: ~p ~p~n", [CmdAtom, Rest]),

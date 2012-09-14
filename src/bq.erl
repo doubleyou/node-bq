@@ -15,7 +15,11 @@ start() ->
             {directory, <<"node/client">>},
             {mimetypes, {fun mimetypes:path_to_mimes/2, default}}
           ]},
-          {'_', bq_http, []}
+          {[<<"shared">>, '...'], cowboy_http_static, [
+            {directory, <<"node/shared">>},
+            {mimetypes, {fun mimetypes:path_to_mimes/2, default}}
+          ]},
+          {'_', bq_http, [{upstream, "http://localhost:8001/"}]}
         ]}
     ],
 
