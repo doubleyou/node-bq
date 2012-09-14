@@ -11,13 +11,8 @@ start() ->
 
     Dispatch = [
         {'_', [
-          {[], cowboy_http_static, [
+          {[<<"client">>, '...'], cowboy_http_static, [
             {directory, <<"node/client">>},
-            {mimetypes, [{<<".html">>,[<<"text/html">>]}]},
-            {file, <<"index.html">>}
-          ]},
-          {['...'], cowboy_http_static, [
-            {directory, <<"node/">>},
             {mimetypes, {fun mimetypes:path_to_mimes/2, default}}
           ]},
           {'_', bq_http, []}
