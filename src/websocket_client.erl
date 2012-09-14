@@ -62,11 +62,11 @@ init([URL, Mod, Args]) ->
   {ok,#state{url = URL, socket=Socket,mod=Mod, state = undefined, args = Args}}.
 
 %% Write to the server
-write(Websocket, Data) ->
+write(Websocket, Data) when is_pid(Websocket) ->
   Websocket ! {send, Data}.
 
 %% Close the socket
-close(Websocket) ->
+close(Websocket) when is_pid(Websocket) ->
   Websocket ! close.
 
 handle_cast(_Cast, State) ->
@@ -94,7 +94,7 @@ handle_info({http,Socket,{http_header, _, 'Upgrade', _, <<"websocket">>}}, #stat
 
 
 handle_info({http,Socket,{http_header, _, Name, _, Value}}, #state{socket = Socket, headers = Headers} = State) ->
-  io:format("~p~n", [{Name, Value, State#state.readystate}]),
+  % io:format("~p~n", [{Name, Value, State#state.readystate}]),
   inet:setopts(Socket, [{active,once}]),
   {noreply, State#state{headers = [{Name,Value}|Headers]}};
 

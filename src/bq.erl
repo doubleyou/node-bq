@@ -8,6 +8,8 @@ start() ->
     application:start(cowboy),
     application:start(bq),
     application:start(mimetypes),
+    
+     lager:set_loglevel(lager_console_backend, debug),
 
     Dispatch = [
         {'_', [
