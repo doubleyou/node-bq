@@ -22,6 +22,7 @@
     static_chests = [],
     static_entities = [],
     titlesize,
+    entities = [],
     buildings = [],
     characters = []
 }).
@@ -72,6 +73,16 @@
     x,
     y,
     i
+}).
+
+
+-record(entity, {
+    id,
+    type,
+    x,
+    y,
+    orient,
+    opts = []
 }).
 
 -define(json2record(Record, JSON), list_to_tuple([Record|[proplists:get_value(atom_to_binary(K,latin1),JSON) || K <- record_info(fields, Record)]])).

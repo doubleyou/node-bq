@@ -12,6 +12,7 @@
 -export([
     add_character/1
     ,list_id/0
+    ,spawns/1
 ]).
 
 -include("bq.hrl").
@@ -29,20 +30,26 @@ add_character(Char) ->
 list_id() ->
     gen_server:call(?MODULE, list_id).
 
+spawns(SpawnIds) ->
+    gen_server:call(?MODULE, {spawns, SpawnIds}).
+
+
 %%
 %% gen_server callbacks
 %%
 
 init(_) ->
     self() ! load_map,
+    self() ! load_from_upstream,
     {ok, #world{}}.
 
 handle_call({add_character, Char}, _From, State = #world{characters=Chars}) ->
     {reply, {ok, {16,233, 100}}, State#world{characters=[Char|Chars]}};
-handle_call(list_id, _From, State = #world{}) ->
-    {reply, [926,927,928,1120,1121,1122,1220,1221,1222,1820,1821,11920,11921,12220,57134,867220], State};
+handle_call(list_id, _From, State = #world{entities = Entities}) ->
+    {reply, [Id || #entity{id=Id} <- Entities], State};
+
 handle_call(_Msg, _From, State) ->
-    {noreply, State}.
+    {reply, {invalid_call,_Msg}, State}.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -95,8 +102,27 @@ handle_info(load_map, #world{} = State) ->
     lager:info("Map loaded from ~s", [Path]),
     {noreply, State1};
 
+handle_info(load_from_upstream, #world{} = World) ->
+    {ok, Socket} = websocket_client:start_link("http://localhost:8001/", websocket_client, self()),
+    {text, <<"go">>} = websocket_client:read(Socket),
+    websocket_client:call(Socket, json([0,<<"Mp3">>,21,60])),
+    {text,R1} = websocket_client:read(Socket),
+    [_,[19|List]] = mochijson2:decode(R1),
+    {text,R2} = websocket_client:call(Socket, json([20|List])),
+    Spawns = [decode_spawn(S) || S <- mochijson2:decode(R2)],
+    lager:info("Copy spawns from node upstream", []),
+    {noreply, World#world{entities = Spawns}};
+
 handle_info(_Info, State) ->
     {noreply, State}.
+
+json(Cmd) -> {text, iolist_to_binary(mochijson2:encode(Cmd))}.
+
+decode_spawn([2,Id,1,X,Y,Name,Orient,Armor,Weapon]) -> 
+    #entity{id=Id,type=warrior,x=X,y=Y,orient=bq_http:orient_by_id(Orient),opts=[{name,Name},{armor,bq_http:entity_by_id(Armor)},{weapon,bq_http:entity_by_id(Weapon)}]};
+decode_spawn([2,Id,Type,X,Y,Orient]) -> #entity{id=Id,type=bq_http:entity_by_id(Type),x=X,y=Y,orient=bq_http:orient_by_id(Orient)};
+decode_spawn([2,Id,Type,X,Y]) -> #entity{id=Id,type=bq_http:entity_by_id(Type),x=X,y=Y}.
+
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.

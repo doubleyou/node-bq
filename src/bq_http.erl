@@ -67,13 +67,16 @@ decode(Text) when is_binary(Text) ->
 fmt(Format, Args) -> iolist_to_binary(io_lib:format(Format, Args)).
 
 
+dump([hello,Name,Armor,Weapon]) -> fmt("#hello{name=~s,armor=~p,weapon=~p}", [Name, entity_by_id(Armor), entity_by_id(Weapon)]);
 dump([welcome,Id,Name,X,Y,HP]) -> fmt("#welcome{id=~p,name=~s,x=~p,y=~p,hp=~p}", [Id,Name,X,Y,HP]);
 % server/js/player.js:252
 dump([spawn,Id,1,X,Y,Name,Orient,Armor,Weapon]) -> fmt("#spawn{id=~p,type=warrior,x=~p,y=~p,name=~s,orient=~p,armor=~p,weapon=~p}", [Id,X,Y,Name,orient_by_id(Orient),Armor,Weapon]);
 dump([spawn,Id,Type,X,Y]) -> fmt("#spawn{id=~p,type=~p,x=~p,y=~p}", [Id,entity_by_id(Type),X,Y]);
 dump([spawn,Id,Type,X,Y,Orient]) -> fmt("#spawn{id=~p,type=~p,x=~p,y=~p,orient=~p}", [Id,entity_by_id(Type),X,Y, orient_by_id(Orient)]);
+dump([move,Id,X,Y]) -> fmt("#move{id=~p,x=~p,y=~p}", [Id,X,Y]);
 dump([Cmd|Rest]) when is_atom(Cmd) -> fmt("#~s~240p", [Cmd,Rest]);
 dump([Cmd|_] = List) when is_list(Cmd) -> [<<(dump(C))/binary, "">> || C <- List].
+
 
 
 command_by_id(N) -> lists:nth(N+1, commands()).
@@ -140,7 +143,9 @@ onmessage({text, Message}, Pid) ->
     Command = decode(Message),
     lager:debug("nodejs> ~p", [dump(Command)]),
     case Command of
-        [[spawn|_]|_] -> Pid ! {text,Message};
+        % [[spawn|_]|_] ->
+        %     bq_world:temp_update_world([decode_spawn(Spawn) || Spawn <- Command]),
+        %     Pid ! {text,Message};
         [[population|_],[list|_]|_] -> Pid ! {text,Message};
         _ -> ok
     end,

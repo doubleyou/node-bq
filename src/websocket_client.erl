@@ -4,6 +4,7 @@
 
 %% API
 -export([start_link/3,write/2,close/1]).
+-export([call/2, read/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -36,9 +37,14 @@ onopen(Args) ->
   io:format("Connected~n"),
   {ok, Args}.
 
+onmessage({Type, Message}, Pid) when is_pid(Pid) ->
+    Pid ! {Type, self(), Message},
+    {ok, Pid};
+
 onmessage({text, Message}, State) ->
   io:format("Text message: ~s~n", [Message]),
   {ok, State};
+
 
 onmessage({binary, Message}, State) ->
   io:format("Bin message: ~p~n", [erlang:binary_to_term(Message)]),
@@ -47,6 +53,18 @@ onmessage({binary, Message}, State) ->
 onclose(State) ->
   {ok, State}.
 
+
+call(Socket, Msg) ->
+    write(Socket, Msg),
+    read(Socket).
+
+
+read(Socket) ->
+    receive
+        {Type, Socket, Message} -> {Type, Message}
+    after
+        5000 -> erlang:exit(timeout)
+    end.
 
 start_link(URL, Mod, Args) ->
   gen_server:start_link(?MODULE, [URL, Mod,Args], []).
