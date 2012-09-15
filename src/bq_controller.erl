@@ -7,10 +7,15 @@
 -export([handle/2]).
 
 
--export([hello/2,
-         who/2,
-         move/2,
-         chat/2]).
+-export([
+    hello/2
+    ,who/2
+    ,move/2
+    ,chat/2
+    ,check/2
+    ,lootmove/2
+    % ,attack/2
+]).
 
 
 
@@ -29,17 +34,17 @@ handle([Command|Args], State) ->
 
 
 
-hello([Name | _], State) ->
-    ID = erlang:phash2(Name, 100000),
+hello([Name | _], #client{} = State) ->
+    % gproc:reg({n, l, ID}),
+    {ok, {Id, X,Y,Hitpoints}} = bq_world:login(Name),
     NewState = State#client{
-        id = ID,
+        id = Id,
         logged_in = true
     },
-    lager:info("Client with id ~p connected", [ID]),
-    % gproc:reg({n, l, ID}),
-    {ok, {X,Y,Hitpoints}} = bq_world:add_character(ID),
+    lager:info("Client with id ~p connected", [Id]),
+
     % server/js/player.js:65
-    Welcome = [welcome, NewState#client.id, Name, X, Y, Hitpoints],
+    Welcome = [welcome, Id, Name, X, Y, Hitpoints],
     % server/js/worldserver.js:853
     Population = [population, 2, null],
     List = [list|bq_world:list_id()],
@@ -57,3 +62,18 @@ chat(Cmd, State) ->
     lager:info("Chat message: ~p", [Cmd]),
     {reply, [], State}.
 
+
+check([Id], State) ->
+    case bq_world:checkpoint(Id) of
+        #checkpoint{} = CheckPoint ->
+            {noreply, State#client{checkpoint = CheckPoint}};
+        undefined ->
+            {noreply, State}
+    end.
+
+
+% server/js/player.js:99
+lootmove([X,Y,EntityId], #client{id = Id} = Client) ->
+    % TODO: add broadcast lootmove
+    ok = bq_world:lootmove(Id, EntityId),
+    {noreply, Client#client{x = X, y = Y}}.

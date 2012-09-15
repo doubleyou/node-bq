@@ -6,7 +6,8 @@
     id = 1000,
     x = 0,
     y = 0,
-    orientation = random:uniform(4)
+    orientation = random:uniform(4),
+    checkpoint
 }).
 
 
@@ -82,6 +83,10 @@
     x,
     y,
     orient,
+    name,
+    armor,
+    weapon,
+    pid,
     opts = []
 }).
 
