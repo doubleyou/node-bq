@@ -17,9 +17,9 @@ websocket_init(_TransportName, Req, Opts) ->
     % erlang:send_after(1000, self(), move),
     % FIXME: link and monitor
     {ok, Upstream} = websocket_client:start_link(proplists:get_value(upstream, Opts), ?MODULE, [self()]),
-    {ok, Req, #state{upstream = Upstream}}.
+    {ok, Req, #client{upstream = Upstream}}.
 
-websocket_handle({text, Msg}, Req, #state{upstream = Upstream} = State) ->
+websocket_handle({text, Msg}, Req, #client{upstream = Upstream} = State) ->
     lager:debug("browser> ~p", [Msg]),    
     websocket_client:write(Upstream, {text, Msg}),
     

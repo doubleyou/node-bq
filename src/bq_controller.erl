@@ -31,7 +31,7 @@ handle([Command|Args], State) ->
 
 hello([Name | _], State) ->
     ID = erlang:phash2(Name, 100000),
-    NewState = State#state{
+    NewState = State#client{
         id = ID,
         logged_in = true
     },
@@ -39,7 +39,7 @@ hello([Name | _], State) ->
     % gproc:reg({n, l, ID}),
     {ok, {X,Y,Hitpoints}} = bq_world:add_character(ID),
     % server/js/player.js:65
-    Welcome = [welcome, NewState#state.id, Name, X, Y, Hitpoints],
+    Welcome = [welcome, NewState#client.id, Name, X, Y, Hitpoints],
     % server/js/worldserver.js:853
     Population = [population, 2, null],
     List = [list|bq_world:list_id()],
@@ -51,7 +51,7 @@ who(Spawns, State) ->
     {noreply, State}.
 
 move([X, Y], State) ->
-    {reply, [4, State#state.id, X, Y], State#state{x = X, y = Y}}.
+    {reply, [4, State#client.id, X, Y], State#client{x = X, y = Y}}.
 
 chat(Cmd, State) ->
     lager:info("Chat message: ~p", [Cmd]),
