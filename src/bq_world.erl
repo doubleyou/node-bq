@@ -47,7 +47,10 @@ handle_call({add_character, Char}, _From, State = #world{characters=Chars}) ->
     {reply, {ok, {16,233, 100}}, State#world{characters=[Char|Chars]}};
 handle_call(list_id, _From, State = #world{entities = Entities}) ->
     {reply, [Id || #entity{id=Id} <- Entities], State};
-
+handle_call({spawns, SpawnIds}, _From, #world{entities = Entities} = World) ->
+    EntityList = [lists:keyfind(Id, #entity.id, Entities) || Id <- SpawnIds],
+    Spawns = [encode_spawn(Entity) || #entity{} = Entity <- EntityList],
+    {reply, Spawns, World};
 handle_call(_Msg, _From, State) ->
     {reply, {invalid_call,_Msg}, State}.
 
@@ -122,6 +125,18 @@ decode_spawn([2,Id,1,X,Y,Name,Orient,Armor,Weapon]) ->
     #entity{id=Id,type=warrior,x=X,y=Y,orient=bq_http:orient_by_id(Orient),opts=[{name,Name},{armor,bq_http:entity_by_id(Armor)},{weapon,bq_http:entity_by_id(Weapon)}]};
 decode_spawn([2,Id,Type,X,Y,Orient]) -> #entity{id=Id,type=bq_http:entity_by_id(Type),x=X,y=Y,orient=bq_http:orient_by_id(Orient)};
 decode_spawn([2,Id,Type,X,Y]) -> #entity{id=Id,type=bq_http:entity_by_id(Type),x=X,y=Y}.
+
+
+encode_spawn(#entity{type=Type,x=X,y=Y,id=Id,orient=Orient, opts = Opts}) ->
+    [2,Id,bq_http:entity_by_name(Type),X,Y] ++ if
+        Type == warrior ->
+            [proplists:get_value(name,Opts),bq_http:orient_by_name(Orient),bq_http:entity_by_name(proplists:get_value(armor,Opts)),
+            bq_http:entity_by_name(proplists:get_value(weapon,Opts))];
+        Orient =/= undefined ->
+            [bq_http:orient_by_name(Orient)];
+        true ->
+            []
+    end.    
 
 
 code_change(_OldVsn, State, _Extra) ->
