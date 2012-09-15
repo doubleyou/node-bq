@@ -6,6 +6,8 @@
 
 -export([onopen/1, onmessage/2, onclose/1]).
 
+-export([commands/0, command_by_id/1, command_by_name/1, entities/0, entity_by_id/1, entity_by_name/1]).
+
 -include("bq.hrl").
 
 init({tcp, http}, _Req, _Opts) ->
@@ -54,29 +56,40 @@ websocket_terminate(_Reason, _Req, _State) ->
 decode(<<"go">>) -> go;
 decode(Text) -> 
     [Cmd|Rest] = mochijson2:decode(Text),
-    [cmd_atom(Cmd)|Rest].
+    [command_by_id(Cmd)|Rest].
 
-cmd_atom(N) -> 
-    lists:nth(N+1, cmd_atoms()).
+command_by_id(N) -> lists:nth(N+1, commands()).
+command_by_name(Cmd) -> find_in_list(Cmd, commands()).
 
-cmd_number(Cmd) ->
-    cmd_number(Cmd, cmd_atoms(), 0).
+entity_by_id(N) -> lists:nth(N+1, entities()).
+entity_by_name(Cmd) -> find_in_list(Cmd, entities()).
 
-cmd_number(Cmd, [Cmd|_], N) -> N;
-cmd_number(Cmd, [_|Atoms], N) -> cmd_number(Cmd, Atoms, N+1);
-cmd_number(Cmd, [], _) -> erlang:error({invalid_command, Cmd}).
 
-cmd_atoms() ->
+find_in_list(Atom, List) ->
+    proplists:get_value(Atom, lists:zip(List, lists:seq(0,length(List)-1))).
+
+commands() ->
     [hello, welcome, spawn, despawn, move, lootmove, aggro, attack, hit,
     hurt, health, chat, loot, equip, drop, teleport, damage, population, kill, list,
     who, zone, destroy, hp, blink, open, check].
+
+
+entities() ->
+    [none,warrior, rat, skeleton, goblin, ogre, spectre, crab, bat, wizard, eye, snake, skeleton2, boss, deathknight,
+    none,none,none,none,none,
+    firfox, clotharmor, leatherarmor, mailarmor, platearmor, readarmor, goldenarmor,
+    none,none,none,none,none,none,none,none,
+    flask, burger, chest, firepotion,cake,
+    guard,kind,octocat,villagegirl,villager,priest,scientist,agent,rick,nyan,sorcerer,beachnpc,forestnpc,desertnpc,lavanpc,coder,
+    none,none,none,none,
+    sword1,sword2,redsword,goldensword,morningstar,axe,bluesword].
 
 
 
 encode(Msg) when is_number(Msg) orelse is_binary(Msg) -> Msg;
 encode(null) -> null;
 encode(undefined) -> undefined;
-encode(Msg) when is_atom(Msg) -> cmd_number(Msg);
+encode(Msg) when is_atom(Msg) -> command_by_name(Msg);
 encode(Msg) when is_list(Msg) -> [encode(E) || E <- Msg].
 
 

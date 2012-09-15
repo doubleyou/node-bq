@@ -322,6 +322,9 @@ module.exports = World = cls.Class.extend({
     },
     
     addEntity: function(entity) {
+        var z = "";
+        for(var k in entity) { if(!_.isFunction(entity[k])) {z += k + ":" + entity[k]+",";}}
+        log.debug("Adding "+z);
         this.entities[entity.id] = entity;
         this.handleEntityGroupMembership(entity);
     },
