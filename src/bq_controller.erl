@@ -16,6 +16,7 @@
     ,lootmove/2
     ,attack/2
     ,hit/2
+    ,zone/2
 ]).
 
 
@@ -55,13 +56,16 @@ hello([Name | _], #client{} = State) ->
         hitpoints = Hitpoints
     }}.
 
+zone([], Client) ->
+    {reply, [list|bq_world:list_id()], Client}.
+
 who(SpawnIds, State) ->
     % server/js/worldserver.js:249
     {reply, bq_world:spawns(SpawnIds), State}.
 
 move([X, Y], #client{id = Id} = State) ->
     ok = bq_world:move(Id, X, Y),
-    {reply, [4, State#client.id, X, Y], State#client{x = X, y = Y}}.
+    {noreply, State#client{x = X, y = Y}}.
 
 chat(Cmd, State) ->
     lager:info("Chat message: ~p", [Cmd]),
@@ -85,13 +89,24 @@ lootmove([X,Y,EntityId], #client{id = Id} = Client) ->
 
 
 attack([EntityId], #client{id = Id} = Client) ->
-    bq_world:broadcast([attack, EntityId, Id]),
+    bq_world:broadcast([attack, Id, EntityId]),
     {noreply, Client}.
 
-hit([EntityId], #client{id = Id} = Client) ->
-    #entity{} = Entity = bq_world:entity(EntityId),
-    Damage = damage(weapon_level(Client), armor_level(Entity)),
-    {noreply, Client}.
+hit([EntityId], #client{} = Client) ->
+    case bq_world:entity(EntityId) of
+        #entity{} = Entity ->
+            Damage = damage(weapon_level(Client), armor_level(Entity)),
+            % server/js/player.js:131, add hurt and hate
+            case bq_world:hit(EntityId, Damage) of
+                {ok, damage} ->
+                    {reply, [damage, EntityId, Damage], Client};
+                {ok, killed} ->
+                    {noreply, Client}
+            end;
+        undefined ->
+            {noreply, Client}
+    end.
+
 
 armor_level(#entity{type = Type}) ->
     case ets:lookup(bq_properties, Type) of
@@ -102,12 +117,12 @@ armor_level(#entity{type = Type}) ->
 
 % FIXME
 % shared/js/gametypes.js:162
-weapon_level(#client{} = Client) ->
-    3.
+weapon_level(#client{}) ->
+    1.
 
 
 damage(Weapon, Armor) when is_number(Weapon) andalso is_number(Armor) ->
-    Dealt = Weapon * (random:uniform(5) + 5),
+    Dealt = Weapon * (random:uniform(5) + 2),
     Absorbed = Armor * (random:uniform(2) + 1),
     Damage = Dealt - Absorbed,
     if Damage < 0 -> random:uniform(3);

@@ -20,6 +20,7 @@
     ,lootmove/2
     ,broadcast/1
     ,checkpoint/1
+    ,hit/2
 ]).
 
 -include("bq.hrl").
@@ -50,7 +51,7 @@ entity(Id) ->
 
 
 broadcast(Msg) ->
-    Pids = ets:select(ets:fun2ms(fun(#entity{pid = Pid}) when is_pid(Pid) -> Pid end)),
+    Pids = ets:select(?MODULE, ets:fun2ms(fun(#entity{pid = Pid}) when is_pid(Pid) -> Pid end)),
     [Pid ! {json,Msg} || Pid <- Pids, is_pid(Pid)],
     ok.
 
@@ -63,6 +64,10 @@ move(Id,X,Y) ->
 
 lootmove(Id, EntityId) ->
     gen_server:call(?MODULE, {lootmove, Id, EntityId}).
+
+
+hit(EntityId, Damage) ->
+    gen_server:call(?MODULE, {hit,EntityId,Damage}).
 
 %%
 %% gen_server callbacks
@@ -84,12 +89,14 @@ handle_call({login, Name, Pid}, _From, State = #world{}) ->
             Entity_ = #entity{
                 id = erlang:phash2(Name, 100000),
                 x = 16,
-                y = 233
+                y = 233,
+                pid = Pid
             },
             % TODO: send spawn message
             Entity_
     end,
     #entity{id=Id,x=X,y=Y} = Entity,
+    
     ets:insert(?MODULE, Entity),
     {reply, {ok, {Id,X,Y, 100}}, State};
     
@@ -103,6 +110,7 @@ handle_call({checkpoint,Id}, _From, #world{checkpoints = Checkpoints} = World) -
 handle_call({move,Id,X,Y}, _From, #world{} = World) ->
     case ets:update_element(?MODULE, Id, [{#entity.x,X},{#entity.y,Y}]) of
         true ->
+            broadcast([move, Id, X, Y]),
             {reply, ok, World};
         false ->
             {reply, {error, no_entity}, World}
@@ -123,7 +131,24 @@ handle_call({lootmove, Id, EntityId}, _From, #world{} = World) ->
         false ->
             {reply, {error, no_entity}, World}
     end;
-        
+
+handle_call({hit,EntityId,Damage}, _From, #world{} = World) ->
+    lager:debug("Hit ~p with ~p", [entity(EntityId),Damage]),
+    
+    case entity(EntityId) of
+        undefined ->
+            {reply, {error, no_entity}, World};
+        #entity{hitpoints = HP} when HP - Damage > 0 ->
+            ets:update_element(?MODULE, EntityId, {#entity.hitpoints, HP - Damage}),
+            {reply, {ok, damage}, World};
+        #entity{hitpoints = HP, type = Type} when HP - Damage =< 0 ->
+            broadcast([[damage,EntityId,Damage],[kill, Type], [despawn, EntityId]]),
+            ets:delete(?MODULE, EntityId),
+            lager:debug("Deleting entity ~p(~p) with ~p hitpoints", [Type,EntityId,HP - Damage]),
+            {reply, {ok,killed}, World}
+    end;
+
+
 handle_call(_Msg, _From, State) ->
     {reply, {invalid_call,_Msg}, State}.
 
