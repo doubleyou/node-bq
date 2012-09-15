@@ -23,7 +23,6 @@
     static_chests = [],
     static_entities = [],
     titlesize,
-    entities = [],
     buildings = [],
     characters = []
 }).

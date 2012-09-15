@@ -55,7 +55,8 @@ who(SpawnIds, State) ->
     % server/js/worldserver.js:249
     {reply, bq_world:spawns(SpawnIds), State}.
 
-move([X, Y], State) ->
+move([X, Y], #client{id = Id} = State) ->
+    ok = bq_world:move(Id, X, Y),
     {reply, [4, State#client.id, X, Y], State#client{x = X, y = Y}}.
 
 chat(Cmd, State) ->

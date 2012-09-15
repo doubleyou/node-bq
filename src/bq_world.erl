@@ -1,6 +1,8 @@
 -module(bq_world).
 -behaviour(gen_server).
 
+-include_lib("stdlib/include/ms_transform.hrl").
+
 -export([start_link/0]).
 -export([init/1,
          handle_call/3,
@@ -13,7 +15,7 @@
     login/1
     ,list_id/0
     ,spawns/1
-    
+    ,move/3
     ,lootmove/2
     ,broadcast/1
     ,checkpoint/1
@@ -32,10 +34,14 @@ login(Name) ->
     gen_server:call(?MODULE, {login, Name, self()}).
 
 list_id() ->
-    gen_server:call(?MODULE, list_id).
+    ets:select(?MODULE, ets:fun2ms(fun(#entity{id = Id}) -> Id end)).
 
 spawns(SpawnIds) ->
-    gen_server:call(?MODULE, {spawns, SpawnIds}).
+    EntityList = [case ets:lookup(?MODULE, Id) of
+        [E] -> E;
+        [] -> undefined
+    end || Id <- SpawnIds],
+    [encode_spawn(Entity) || #entity{} = Entity <- EntityList].
 
 
 broadcast(_Msg) ->
@@ -43,6 +49,9 @@ broadcast(_Msg) ->
 
 checkpoint(Id) ->
     gen_server:call(?MODULE, {checkpoint,Id}).
+
+move(Id,X,Y) ->
+    gen_server:call(?MODULE, {move,Id,X,Y}).
 
 lootmove(Id, EntityId) ->
     gen_server:call(?MODULE, {lootmove, Id, EntityId}).
@@ -54,13 +63,14 @@ lootmove(Id, EntityId) ->
 init(_) ->
     self() ! load_map,
     self() ! load_from_upstream,
+    ets:new(?MODULE, [public,named_table,{keypos,#entity.id}]),
     {ok, #world{}}.
 
-handle_call({login, Name, Pid}, _From, State = #world{entities = Entities}) ->
+handle_call({login, Name, Pid}, _From, State = #world{}) ->
     erlang:monitor(process,Pid),
-    Entity = case lists:keyfind(Name, #entity.name, Entities) of
-        #entity{} = Entity_ -> Entity_#entity{pid = Pid};
-        false -> 
+    Entity = case ets:select(?MODULE, ets:fun2ms(fun(#entity{name = N} = E) when N == Name -> E end)) of
+        [#entity{} = Entity_] -> Entity_#entity{pid = Pid};
+        [] -> 
             Entity_ = #entity{
                 id = erlang:phash2(Name, 100000),
                 x = 16,
@@ -70,14 +80,9 @@ handle_call({login, Name, Pid}, _From, State = #world{entities = Entities}) ->
             Entity_
     end,
     #entity{id=Id,x=X,y=Y} = Entity,
-    {reply, {ok, {Id,X,Y, 100}}, State#world{entities=lists:keystore(Id,#entity.id,Entities,Entity)}};
+    ets:insert(?MODULE, Entity),
+    {reply, {ok, {Id,X,Y, 100}}, State};
     
-handle_call(list_id, _From, State = #world{entities = Entities}) ->
-    {reply, [Id || #entity{id=Id} <- Entities], State};
-handle_call({spawns, SpawnIds}, _From, #world{entities = Entities} = World) ->
-    EntityList = [lists:keyfind(Id, #entity.id, Entities) || Id <- SpawnIds],
-    Spawns = [encode_spawn(Entity) || #entity{} = Entity <- EntityList],
-    {reply, Spawns, World};
 handle_call({checkpoint,Id}, _From, #world{checkpoints = Checkpoints} = World) ->
     Reply = case lists:keyfind(Id,#checkpoint.id,Checkpoints) of
         #checkpoint{} = Checkpoint -> Checkpoint;
@@ -85,16 +90,26 @@ handle_call({checkpoint,Id}, _From, #world{checkpoints = Checkpoints} = World) -
     end,
     {reply, Reply, World};
 
-handle_call({lootmove, Id, EntityId}, _From, #world{entities = Entities} = World) ->
-    {Player,Entities1} = case lists:keytake(Id, #entity.id, Entities) of
-        {value, P, E} -> {P, E};
-        false -> throw({reply, {error, no_player}, World})
+handle_call({move,Id,X,Y}, _From, #world{} = World) ->
+    case ets:update_element(?MODULE, Id, [{#entity.x,X},{#entity.y,Y}]) of
+        true ->
+            {reply, ok, World};
+        false ->
+            {reply, {error, no_entity}, World}
+    end;    
+
+handle_call({lootmove, Id, EntityId}, _From, #world{} = World) ->
+    case ets:lookup(?MODULE, Id) of
+        [#entity{} = _Player] -> ok;
+        [] -> throw({reply, {error, no_player}, World})
     end,
     
-    case lists:keytake(EntityId, #entity.id, Entities1) of
-        {value, #entity{x=X, y=Y}, Entities2} ->
+    case ets:lookup(?MODULE, EntityId) of
+        [#entity{x=X, y=Y}] ->
             send_all(World, [lootmove, Id, EntityId]),
-            {reply, ok, World#world{entities = [Player#entity{x=X,y=Y}|Entities2]}};
+            ets:delete(?MODULE, EntityId),
+            ets:update_element(?MODULE, Id, [{#entity.x,X},{#entity.y,Y}]),
+            {reply, ok, World};
         false ->
             {reply, {error, no_entity}, World}
     end;
@@ -161,8 +176,9 @@ handle_info(load_from_upstream, #world{} = World) ->
     [_,[19|List]] = mochijson2:decode(R1),
     {text,R2} = websocket_client:call(Socket, json([20|List])),
     Spawns = [decode_spawn(S) || S <- mochijson2:decode(R2)],
+    ets:insert(?MODULE, Spawns),
     lager:info("Copy spawns from node upstream", []),
-    {noreply, World#world{entities = Spawns}};
+    {noreply, World};
 
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -186,8 +202,9 @@ encode_spawn(#entity{type=Type,x=X,y=Y,id=Id,orient=Orient,name=Name,armor=Armor
     end.    
 
 
-send_all(#world{entities = Entities},Msg) ->
-    [Pid ! {json,Msg} || #entity{pid = Pid} <- Entities, is_pid(Pid)],
+send_all(#world{},Msg) ->
+    Pids = ets:select(ets:fun2ms(fun(#entity{pid = Pid}) when is_pid(Pid) -> Pid end)),
+    [Pid ! {json,Msg} || Pid <- Pids, is_pid(Pid)],
     ok.
 
 
