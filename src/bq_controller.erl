@@ -16,6 +16,7 @@
     ,lootmove/2
     ,attack/2
     ,hit/2
+    ,hurt/2
     ,zone/2
 ]).
 
@@ -89,8 +90,9 @@ lootmove([X,Y,EntityId], #client{id = Id} = Client) ->
 
 
 attack([EntityId], #client{id = Id} = Client) ->
-    bq_world:broadcast([attack, Id, EntityId]),
-    {noreply, Client}.
+    % bq_world:broadcast([attack, Id, EntityId]),
+    bq_world:attack(Id, EntityId),
+    {reply, [attack, EntityId, Id], Client}.
 
 hit([EntityId], #client{} = Client) ->
     case bq_world:entity(EntityId) of
@@ -101,24 +103,44 @@ hit([EntityId], #client{} = Client) ->
                 {ok, damage} ->
                     {reply, [damage, EntityId, Damage], Client};
                 {ok, killed} ->
-                    {noreply, Client}
+                    {reply, [damage, EntityId, Damage], Client}
             end;
         undefined ->
             {noreply, Client}
     end.
 
 
+hurt([EntityId], #client{hitpoints = HP1, id = Id} = Client) ->
+    case bq_world:entity(EntityId) of
+        #entity{} = Entity ->
+            Damage = damage(weapon_level(Entity), armor_level(Client)),
+            HP2 = HP1 - Damage,
+            ets:update_element(bq_world, Id, {#entity.hitpoints, HP2}),
+            {reply, [health, HP2, 1], Client#client{hitpoints = HP2}};
+        undefined ->
+            {noreply, Client}
+    end.
+
+            
+
 armor_level(#entity{type = Type}) ->
     case ets:lookup(bq_properties, Type) of
         [#property{armor = Armor}] -> Armor;
         [] -> undefined
-    end.
+    end;
+
+armor_level(#client{}) ->
+    3.
 
 
 % FIXME
 % shared/js/gametypes.js:162
 weapon_level(#client{}) ->
+    2;
+
+weapon_level(#entity{}) ->
     1.
+
 
 
 damage(Weapon, Armor) when is_number(Weapon) andalso is_number(Armor) ->

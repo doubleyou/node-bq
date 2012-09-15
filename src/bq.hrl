@@ -89,6 +89,7 @@
     weapon,
     pid,
     hitpoints,
+    haters = [],
     opts = []
 }).
 

@@ -20,6 +20,7 @@
     ,lootmove/2
     ,broadcast/1
     ,checkpoint/1
+    ,attack/2
     ,hit/2
 ]).
 
@@ -66,6 +67,9 @@ lootmove(Id, EntityId) ->
     gen_server:call(?MODULE, {lootmove, Id, EntityId}).
 
 
+attack(AttackerId, EntityId) ->
+    gen_server:call(?MODULE, {attack, AttackerId, EntityId}).
+
 hit(EntityId, Damage) ->
     gen_server:call(?MODULE, {hit,EntityId,Damage}).
 
@@ -81,13 +85,21 @@ init(_) ->
     ets:new(?MODULE, [public,named_table,{keypos,#entity.id}]),
     {ok, #world{}}.
 
+unique_id() ->
+    Id = random:uniform(100000),
+    case ets:lookup(?MODULE, Id) of
+        [] -> Id;
+        [_] -> unique_id()
+    end.
+
+
 handle_call({login, Name, Pid}, _From, State = #world{}) ->
     erlang:monitor(process,Pid),
     Entity = case ets:select(?MODULE, ets:fun2ms(fun(#entity{name = N} = E) when N == Name -> E end)) of
         [#entity{} = Entity_] -> Entity_#entity{pid = Pid};
         [] -> 
             Entity_ = #entity{
-                id = erlang:phash2(Name, 100000),
+                id = unique_id(),
                 x = 16,
                 y = 233,
                 pid = Pid
@@ -132,17 +144,34 @@ handle_call({lootmove, Id, EntityId}, _From, #world{} = World) ->
             {reply, {error, no_entity}, World}
     end;
 
+
+handle_call({attack, AttackerId, EntityId}, _From, #world{} = World) ->
+    case entity(EntityId) of
+        #entity{haters = Haters} = Entity ->
+            ets:insert(?MODULE, Entity#entity{haters = [AttackerId|Haters]}),
+            {reply, ok, World};
+        undefined ->
+            {reply, {error, no_entity}, World}
+    end;
+
 handle_call({hit,EntityId,Damage}, _From, #world{} = World) ->
-    lager:debug("Hit ~p with ~p", [entity(EntityId),Damage]),
-    
     case entity(EntityId) of
         undefined ->
             {reply, {error, no_entity}, World};
         #entity{hitpoints = HP} when HP - Damage > 0 ->
             ets:update_element(?MODULE, EntityId, {#entity.hitpoints, HP - Damage}),
             {reply, {ok, damage}, World};
-        #entity{hitpoints = HP, type = Type} when HP - Damage =< 0 ->
-            broadcast([[damage,EntityId,Damage],[kill, Type], [despawn, EntityId]]),
+        #entity{x=X,y=Y,hitpoints = HP, type = Type, haters = Haters} when HP - Damage =< 0 ->
+            [#property{drops = Drops}] = ets:lookup(bq_properties, Type),
+            {Drop,_Percentage} = lists:nth(random:uniform(length(Drops)), Drops),
+            DropItem = #entity{
+                x = X,
+                y = Y,
+                type = Drop,
+                id = DropId = unique_id()
+            },
+            ets:insert(?MODULE, DropItem),
+            broadcast([[kill, bq_http:entity_by_name(Type)], [despawn, EntityId],[drop,EntityId,DropId,bq_http:entity_by_name(Drop),Haters]]),
             ets:delete(?MODULE, EntityId),
             lager:debug("Deleting entity ~p(~p) with ~p hitpoints", [Type,EntityId,HP - Damage]),
             {reply, {ok,killed}, World}

@@ -10,6 +10,8 @@
 -export([entities/0, entity_by_id/1, entity_by_name/1]).
 -export([orients/0, orient_by_id/1, orient_by_name/1]).
 
+-export([encode/1, decode/1]).
+
 -include("bq.hrl").
 
 init({tcp, http}, _Req, _Opts) ->
@@ -28,22 +30,17 @@ websocket_handle({text, Msg}, Req, #client{upstream = Upstream} = State) ->
     lager:debug("browser> ~p", [Command]),
 
     websocket_client:write(Upstream, {text, Msg}),
-    
+
     case bq_controller:handle(Command, State) of
         {reply, Reply, NewState} ->
             reply(Reply, Req, NewState);
         {noreply, NewState} ->
             {ok, Req, NewState}
     end.
+    % {ok, Req, State}.
 
 websocket_info(accept_client, Req, State) ->
     {reply, {text, <<"go">>}, Req, State};
-% websocket_info(population, Req, State) ->
-%     Pop = 1,
-%     reply([17, Pop, Pop], Req, State);
-% websocket_info(move, Req, State) ->
-%     {Reply, NewState} = move([0, 0], State),
-%     reply(Reply, Req, NewState);
 websocket_info({json, Msg}, Req, State) ->
     reply(Msg, Req, State);
 websocket_info({text, Text}, Req, State) ->
@@ -146,13 +143,6 @@ onmessage({text, <<"timeout">> = Message}, Pid) ->
 onmessage({text, Message}, Pid) ->
     Command = decode(Message),
     lager:debug("nodejs> ~p", [dump(Command)]),
-    case Command of
-        % [[spawn|_]|_] ->
-        %     bq_world:temp_update_world([decode_spawn(Spawn) || Spawn <- Command]),
-        %     Pid ! {text,Message};
-        [[population|_],[list|_]|_] -> Pid ! {text,Message};
-        _ -> ok
-    end,
     %%% !!!!!!!!!!!!!!!!
     %%% !!!!!!!!!!!!!!!
     %%%  If uncomment next line, all Node replies will be proxies back to browser and everything will work.
