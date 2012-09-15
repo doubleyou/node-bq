@@ -13,13 +13,14 @@ init({tcp, http}, _Req, _Opts) ->
 
 websocket_init(_TransportName, Req, Opts) ->
     self() ! accept_client,
-    erlang:send_after(1000, self(), population),
-    erlang:send_after(1000, self(), move),
+    % erlang:send_after(1000, self(), population),
+    % erlang:send_after(1000, self(), move),
     % FIXME: link and monitor
     {ok, Upstream} = websocket_client:start_link(proplists:get_value(upstream, Opts), ?MODULE, [self()]),
     {ok, Req, #state{upstream = Upstream}}.
 
 websocket_handle({text, Msg}, Req, #state{upstream = Upstream} = State) ->
+    lager:debug("browser> ~p", [Msg]),    
     websocket_client:write(Upstream, {text, Msg}),
     
     Command = decode(Msg),
@@ -59,7 +60,7 @@ cmd_atom(N) ->
     lists:nth(N+1, cmd_atoms()).
 
 cmd_number(Cmd) ->
-    cmd_number(Cmd, cmd_atoms(), 1).
+    cmd_number(Cmd, cmd_atoms(), 0).
 
 cmd_number(Cmd, [Cmd|_], N) -> N;
 cmd_number(Cmd, [_|Atoms], N) -> cmd_number(Cmd, Atoms, N+1);
@@ -80,7 +81,9 @@ encode(Msg) when is_list(Msg) -> [encode(E) || E <- Msg].
 
 
 reply(Msg, Req, State) ->
-    {reply, {text, mochijson2:encode(encode(Msg))}, Req, State}.
+    JSON = iolist_to_binary(mochijson2:encode(encode(Msg))),
+    lager:debug("erlang> ~p", [JSON]),    
+    {reply, {text, JSON}, Req, State}.
 
 
 
@@ -94,7 +97,7 @@ onmessage({close, Code}, Pid) ->
     {ok, Pid};
 
 onmessage({text, Message}, Pid) ->
-  lager:debug("Text from node: ~p", [Message]),
+  lager:debug("nodejs> ~p", [Message]),
   %%% !!!!!!!!!!!!!!!!
   %%% !!!!!!!!!!!!!!!
   %%%  If uncomment next line, all Node replies will be proxies back to browser and everything will work.

@@ -17,12 +17,9 @@
 handle([Command|Args], State) ->
     case erlang:function_exported(?MODULE, Command, 2) of
         true ->
-            lager:debug("Known cmd from browser: ~p(~p)", [Command,Args]),
             Reply = ?MODULE:Command(Args, State),
-            lager:debug("Our reply: ~p", [Reply]),
             Reply;
         false ->
-            lager:debug("New cmd from browser: ~p", [[Command|Args]]),
             {noreply, State}
     end.
 
@@ -45,9 +42,9 @@ hello([Name | _], State) ->
     Welcome = [welcome, NewState#state.id, Name, X, Y, Hitpoints],
     % server/js/worldserver.js:853
     Population = [population, 2, null],
-    List = [list, bq_world:list_id()],
+    List = [list|bq_world:list_id()],
     self() ! {json, [Population, List]},
-    {reply, [Welcome], NewState}.
+    {reply, Welcome, NewState}.
 
 who(Spawns, State) ->
     % server/js/worldserver.js:249

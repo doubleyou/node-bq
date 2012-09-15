@@ -42,7 +42,7 @@ init(_) ->
 handle_call({add_character, Char}, _From, State = #state{characters=Chars}) ->
     {reply, {ok, {16,233, 100}}, State#state{characters=[Char|Chars]}};
 handle_call(list_id, _From, State = #state{}) ->
-    {reply, [19,926,927,928,929,1020,1021,1022], State};
+    {reply, [926,927,928,1120,1121,1122,1220,1221,1222,1820,1821,11920,11921,12220,57134,867220], State};
 handle_call(_Msg, _From, State) ->
     {noreply, State}.
 
