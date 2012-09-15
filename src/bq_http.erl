@@ -136,8 +136,12 @@ onmessage({close, Code}, Pid) ->
     {ok, Pid};
 
 onmessage({text, <<"go">> = Message}, Pid) ->
-  lager:debug("nodejs> ~p", [Message]),
-  {ok, Pid};
+    lager:debug("nodejs> ~p", [Message]),
+    {ok, Pid};
+
+onmessage({text, <<"timeout">> = Message}, Pid) ->
+    lager:debug("nodejs> ~p", [Message]),
+    {ok, Pid};
 
 onmessage({text, Message}, Pid) ->
     Command = decode(Message),

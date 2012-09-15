@@ -15,6 +15,7 @@
     login/1
     ,list_id/0
     ,spawns/1
+    ,entity/1
     ,move/3
     ,lootmove/2
     ,broadcast/1
@@ -37,15 +38,22 @@ list_id() ->
     ets:select(?MODULE, ets:fun2ms(fun(#entity{id = Id}) -> Id end)).
 
 spawns(SpawnIds) ->
-    EntityList = [case ets:lookup(?MODULE, Id) of
-        [E] -> E;
-        [] -> undefined
-    end || Id <- SpawnIds],
+    EntityList = [entity(Id) || Id <- SpawnIds],
     [encode_spawn(Entity) || #entity{} = Entity <- EntityList].
 
+entity(Id) ->
+    case ets:lookup(?MODULE, Id) of
+        [E] -> E;
+        [] -> undefined
+    end.
 
-broadcast(_Msg) ->
+
+
+broadcast(Msg) ->
+    Pids = ets:select(ets:fun2ms(fun(#entity{pid = Pid}) when is_pid(Pid) -> Pid end)),
+    [Pid ! {json,Msg} || Pid <- Pids, is_pid(Pid)],
     ok.
+
 
 checkpoint(Id) ->
     gen_server:call(?MODULE, {checkpoint,Id}).
@@ -61,8 +69,10 @@ lootmove(Id, EntityId) ->
 %%
 
 init(_) ->
+    self() ! load_properties,
     self() ! load_map,
     self() ! load_from_upstream,
+    ets:new(bq_properties, [public, named_table,{keypos,#property.type}]),
     ets:new(?MODULE, [public,named_table,{keypos,#entity.id}]),
     {ok, #world{}}.
 
@@ -106,7 +116,7 @@ handle_call({lootmove, Id, EntityId}, _From, #world{} = World) ->
     
     case ets:lookup(?MODULE, EntityId) of
         [#entity{x=X, y=Y}] ->
-            send_all(World, [lootmove, Id, EntityId]),
+            broadcast([lootmove, Id, EntityId]),
             ets:delete(?MODULE, EntityId),
             ets:update_element(?MODULE, Id, [{#entity.x,X},{#entity.y,Y}]),
             {reply, ok, World};
@@ -119,6 +129,20 @@ handle_call(_Msg, _From, State) ->
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
+
+handle_info(load_properties, #world{} = World) ->
+    {ok,Bin} = file:read_file("node/server/js/properties.js"),
+    {match, JSON} = re:run(Bin, "Properties = (\\{[^;]+\\});", [{capture,all_but_first,binary}]),
+    {struct, Properties} = mochijson2:decode(re:replace(JSON, "(\\w+)\\:", "\"\\1\":", [global,noteol,{return,binary}])),
+    lists:foreach(fun({Type, {struct,Props}}) ->
+        Property = #property{drops = {struct,Drops}} = ?json2record(property,Props),
+        ets:insert(bq_properties, Property#property{
+            type = binary_to_atom(Type,latin1),
+            drops = [{binary_to_atom(T,latin1),V} || {T,V} <- Drops]
+        })
+    end, Properties),
+    {noreply, World};
+    
 
 handle_info(load_map, #world{} = State) ->
     Path = "node/server/maps/world_server.json",
@@ -187,7 +211,10 @@ json(Cmd) -> {text, iolist_to_binary(mochijson2:encode(Cmd))}.
 
 decode_spawn([2,Id,1,X,Y,Name,Orient,Armor,Weapon]) -> 
     #entity{id=Id,type=warrior,x=X,y=Y,orient=bq_http:orient_by_id(Orient),name=Name,armor=bq_http:entity_by_id(Armor),weapon=bq_http:entity_by_id(Weapon)};
-decode_spawn([2,Id,Type,X,Y,Orient]) -> #entity{id=Id,type=bq_http:entity_by_id(Type),x=X,y=Y,orient=bq_http:orient_by_id(Orient)};
+decode_spawn([2,Id,Type,X,Y,Orient]) ->
+    T = bq_http:entity_by_id(Type),
+    [#property{hp = HP}] = ets:lookup(bq_properties, T),
+    #entity{id=Id,type=T,hitpoints = HP,x=X,y=Y,orient=bq_http:orient_by_id(Orient)};
 decode_spawn([2,Id,Type,X,Y]) -> #entity{id=Id,type=bq_http:entity_by_id(Type),x=X,y=Y}.
 
 
@@ -201,11 +228,6 @@ encode_spawn(#entity{type=Type,x=X,y=Y,id=Id,orient=Orient,name=Name,armor=Armor
             []
     end.    
 
-
-send_all(#world{},Msg) ->
-    Pids = ets:select(ets:fun2ms(fun(#entity{pid = Pid}) when is_pid(Pid) -> Pid end)),
-    [Pid ! {json,Msg} || Pid <- Pids, is_pid(Pid)],
-    ok.
 
 
 code_change(_OldVsn, State, _Extra) ->

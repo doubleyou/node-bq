@@ -1,13 +1,15 @@
 -record(client, {
     upstream,
     logged_in = false,
-    armor = 21,
-    weapon = 60,
-    id = 1000,
-    x = 0,
-    y = 0,
+    armor,
+    weapon,
+    id,
+    x,
+    y,
     orientation = random:uniform(4),
-    checkpoint
+    checkpoint,
+    hitpoints,
+    target
 }).
 
 
@@ -86,7 +88,17 @@
     armor,
     weapon,
     pid,
+    hitpoints,
     opts = []
+}).
+
+
+-record(property, {
+    type,
+    hp,
+    armor,
+    weapon,
+    drops = []
 }).
 
 -define(json2record(Record, JSON), list_to_tuple([Record|[proplists:get_value(atom_to_binary(K,latin1),JSON) || K <- record_info(fields, Record)]])).
