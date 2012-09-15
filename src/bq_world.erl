@@ -22,6 +22,7 @@
     ,checkpoint/1
     ,attack/2
     ,hit/2
+    ,random_pos/0
 ]).
 
 -include("bq.hrl").
@@ -92,22 +93,43 @@ unique_id() ->
         [_] -> unique_id()
     end.
 
+random_pos() ->
+    gen_server:call(?MODULE, random_pos).
+
+random_pos(#world{width = W, height = H, collisions = Collisions} = World) ->
+    N = random:uniform(W*H),
+    case lists:member(N, Collisions) of
+        true ->
+            random_pos(World);
+        false ->
+            X = N rem W,
+            Y = N div W,
+            case ets:select(?MODULE, ets:fun2ms(fun(#entity{x = X_, y = Y_}) when X_ == X, Y_ == Y -> true end)) of
+                [] -> {X,Y};
+                [_|_] -> random_pos(World)
+            end
+    end.
+    
+
+handle_call(random_pos, _From, #world{} = World) ->
+    {reply, random_pos(World), World};
 
 handle_call({login, Name, Pid}, _From, State = #world{}) ->
     erlang:monitor(process,Pid),
     Entity = case ets:select(?MODULE, ets:fun2ms(fun(#entity{name = N} = E) when N == Name -> E end)) of
-        [#entity{} = Entity_] -> Entity_#entity{pid = Pid};
-        [] -> 
+        [#entity{x = X, y = Y} = Entity_] -> Entity_#entity{pid = Pid};
+        [] ->
+            {X,Y} = random_pos(State),
             Entity_ = #entity{
                 id = unique_id(),
-                x = 16,
-                y = 233,
+                x = X,
+                y = Y,
                 pid = Pid
             },
             % TODO: send spawn message
             Entity_
     end,
-    #entity{id=Id,x=X,y=Y} = Entity,
+    #entity{id=Id} = Entity,
     
     ets:insert(?MODULE, Entity),
     {reply, {ok, {Id,X,Y, 100}}, State};
