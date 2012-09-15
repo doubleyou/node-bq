@@ -41,9 +41,9 @@ hello([Name | _], State) ->
     % server/js/player.js:65
     Welcome = [welcome, NewState#client.id, Name, X, Y, Hitpoints],
     % server/js/worldserver.js:853
-    Population = [population, 2, null],
-    List = [list|bq_world:list_id()],
-    self() ! {json, [Population, List]},
+    % Population = [population, 2, null],
+    % List = [list|bq_world:list_id()],
+    % self() ! {json, [Population, List]},
     {reply, Welcome, NewState}.
 
 who(Spawns, State) ->
