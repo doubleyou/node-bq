@@ -15,10 +15,17 @@ decode(<<"go">>) -> go;
 decode(Text) when is_binary(Text) ->
     List = mochijson2:decode(Text),
     case List of
-        [Cmd|Rest] when is_number(Cmd) -> [command_by_id(Cmd)|Rest];
-        [Cmd1|_] when is_list(Cmd1) -> [[command_by_id(Cmd)|Rest] || [Cmd|Rest] <- List]
+        [Cmd|Rest] when is_number(Cmd) -> parse([command_by_id(Cmd)|Rest]);
+        [Cmd1|_] when is_list(Cmd1) -> [parse([command_by_id(Cmd)|Rest]) || [Cmd|Rest] <- List]
     end.
 
+
+parse([hello,Name,Armor,Weapon]) -> [hello, Name, entity_by_id(Armor), entity_by_id(Weapon)];
+parse([spawn,Id,1,X,Y,Name,Orient,Armor,Weapon]) -> [spawn,Id,1,X,Y,Name,orient_by_id(Orient),entity_by_id(Armor),entity_by_id(Weapon)];
+parse([spawn,Id,Type,X,Y]) -> [spawn,Id,entity_by_id(Type),X,Y];
+parse([spawn,Id,Type,X,Y,Orient]) -> [spawn,Id,entity_by_id(Type),X,Y,orient_by_id(Orient)];
+parse([drop,EntityId,DropId,Type,Haters]) -> [drop,EntityId,DropId,entity_by_id(Type),Haters];
+parse(Cmd) -> Cmd.
 
 
 
@@ -26,12 +33,12 @@ decode(Text) when is_binary(Text) ->
 fmt(Format, Args) -> iolist_to_binary(io_lib:format(Format, Args)).
 
 
-dump([hello,Name,Armor,Weapon]) -> fmt("#hello{name=~s,armor=~p,weapon=~p}", [Name, entity_by_id(Armor), entity_by_id(Weapon)]);
+dump([hello,Name,Armor,Weapon]) -> fmt("#hello{name=~s,armor=~p,weapon=~p}", [Name, Armor, Weapon]);
 dump([welcome,Id,Name,X,Y,HP]) -> fmt("#welcome{id=~p,name=~s,x=~p,y=~p,hp=~p}", [Id,Name,X,Y,HP]);
 % server/js/player.js:252
-dump([spawn,Id,1,X,Y,Name,Orient,Armor,Weapon]) -> fmt("#spawn{id=~p,type=warrior,x=~p,y=~p,name=~s,orient=~p,armor=~p,weapon=~p}", [Id,X,Y,Name,orient_by_id(Orient),Armor,Weapon]);
-dump([spawn,Id,Type,X,Y]) -> fmt("#spawn{id=~p,type=~p,x=~p,y=~p}", [Id,entity_by_id(Type),X,Y]);
-dump([spawn,Id,Type,X,Y,Orient]) -> fmt("#spawn{id=~p,type=~p,x=~p,y=~p,orient=~p}", [Id,entity_by_id(Type),X,Y, orient_by_id(Orient)]);
+dump([spawn,Id,1,X,Y,Name,Orient,Armor,Weapon]) -> fmt("#spawn{id=~p,type=warrior,x=~p,y=~p,name=~s,orient=~p,armor=~p,weapon=~p}", [Id,X,Y,Name,Orient,Armor,Weapon]);
+dump([spawn,Id,Type,X,Y]) -> fmt("#spawn{id=~p,type=~p,x=~p,y=~p}", [Id,Type,X,Y]);
+dump([spawn,Id,Type,X,Y,Orient]) -> fmt("#spawn{id=~p,type=~p,x=~p,y=~p,orient=~p}", [Id,Type,X,Y,Orient]);
 dump([move,Id,X,Y]) -> fmt("#move{id=~p,x=~p,y=~p}", [Id,X,Y]);
 dump([Cmd|Rest]) when is_atom(Cmd) -> fmt("#~s~240p", [Cmd,Rest]);
 dump([Cmd|_] = List) when is_list(Cmd) -> [<<(dump(C))/binary, "">> || C <- List].

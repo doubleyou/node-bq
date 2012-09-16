@@ -20,13 +20,15 @@ websocket_init(_TransportName, Req, Opts) ->
 
 
 websocket_handle({text, Msg}, Req, Upstream) ->
+    Command = bq_msg:decode(Msg),
+    lager:debug("browser> ~p", [Command]),
     websocket_client:write(Upstream, {text, Msg}),
     {ok, Req, Upstream}.
 
 
 websocket_info({text, Msg}, Req, Upstream) ->
-    % Command = bq_msg:decode(Message),
-    lager:debug("nodejs> ~p", [Msg]),
+    Command = bq_msg:decode(Msg),
+    lager:debug("nodejs> ~p", [Command]),
     {reply, {text, Msg}, Req, Upstream}.
 
 
