@@ -67,7 +67,7 @@ encode_atom(Msg) when is_atom(Msg) ->
 encode_atom0(Msg) ->
     lists:member(Msg, commands()) andalso throw({int,command_by_name(Msg)}),
     lists:member(Msg, entities()) andalso throw({int,entity_by_name(Msg)}),
-    lists:member(Msg, orients()) andalso throw({int,orient_by_id(Msg)}),
+    lists:member(Msg, orients()) andalso throw({int,orient_by_name(Msg)}),
     erlang:error({unknown_atom, Msg}).
 
 
@@ -104,4 +104,31 @@ entities() ->
 
 orients() ->
     [none,up,down,left,right].
+    
+
+
+-include_lib("eunit/include/eunit.hrl").
+
+
+
+command_encode_test() ->
+    [begin
+        ?assertEqual(Atom, command_by_id(command_by_name(Atom))),
+        ?assertEqual(Atom, command_by_id(encode_atom(Atom)))
+    end || Atom <- commands(), Atom =/= none].
+
+
+entity_encode_test() ->
+    [begin
+        ?assertEqual(Atom, entity_by_id(entity_by_name(Atom))),
+        ?assertEqual(Atom, entity_by_id(encode_atom(Atom)))
+    end || Atom <- entities(), Atom =/= none].
+
+
+orients_encode_test() ->
+    [begin
+        ?assertEqual(Atom, orient_by_id(orient_by_name(Atom))),
+        ?assertEqual(Atom, orient_by_id(encode_atom(Atom)))
+    end || Atom <- orients(), Atom =/= none].
+
     

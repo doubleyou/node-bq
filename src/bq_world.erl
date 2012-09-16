@@ -133,6 +133,7 @@ handle_call({login, Name, Pid}, _From, State = #world{}) ->
     #entity{id=Id} = Entity,
     
     ets:insert(?MODULE, Entity),
+    broadcast(encode_spawn(Entity)),
     {reply, {ok, {Id,X,Y, 100}}, State};
     
 handle_call({checkpoint,Id}, _From, #world{checkpoints = Checkpoints} = World) ->
@@ -296,11 +297,11 @@ decode_spawn([2,Id,Type,X,Y]) -> #entity{id=Id,type=bq_msg:entity_by_id(Type),x=
 
 
 encode_spawn(#entity{type=Type,x=X,y=Y,id=Id,orient=Orient,name=Name,armor=Armor,weapon=Weapon}) ->
-    [2,Id,bq_msg:entity_by_name(Type),X,Y] ++ if
+    [2,Id,Type,X,Y] ++ if
         Type == warrior ->
-            [Name,bq_msg:orient_by_name(Orient),bq_msg:entity_by_name(Armor),bq_msg:entity_by_name(Weapon)];
+            [Name,Orient,Armor,Weapon];
         Orient =/= undefined ->
-            [bq_msg:orient_by_name(Orient)];
+            [Orient];
         true ->
             []
     end.    
