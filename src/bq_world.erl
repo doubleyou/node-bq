@@ -194,7 +194,7 @@ handle_call({hit,EntityId,Damage}, _From, #world{} = World) ->
                 id = DropId = unique_id()
             },
             ets:insert(?MODULE, DropItem),
-            broadcast([[kill, bq_http:entity_by_name(Type)], [despawn, EntityId],[drop,EntityId,DropId,bq_http:entity_by_name(Drop),Haters]]),
+            broadcast([[kill, bq_msg:entity_by_name(Type)], [despawn, EntityId],[drop,EntityId,DropId,bq_msg:entity_by_name(Drop),Haters]]),
             ets:delete(?MODULE, EntityId),
             lager:debug("Deleting entity ~p(~p) with ~p hitpoints", [Type,EntityId,HP - Damage]),
             {reply, {ok,killed}, World}
@@ -287,20 +287,20 @@ handle_info(_Info, State) ->
 json(Cmd) -> {text, iolist_to_binary(mochijson2:encode(Cmd))}.
 
 decode_spawn([2,Id,1,X,Y,Name,Orient,Armor,Weapon]) -> 
-    #entity{id=Id,type=warrior,x=X,y=Y,orient=bq_http:orient_by_id(Orient),name=Name,armor=bq_http:entity_by_id(Armor),weapon=bq_http:entity_by_id(Weapon)};
+    #entity{id=Id,type=warrior,x=X,y=Y,orient=bq_msg:orient_by_id(Orient),name=Name,armor=bq_msg:entity_by_id(Armor),weapon=bq_msg:entity_by_id(Weapon)};
 decode_spawn([2,Id,Type,X,Y,Orient]) ->
-    T = bq_http:entity_by_id(Type),
+    T = bq_msg:entity_by_id(Type),
     [#property{hp = HP}] = ets:lookup(bq_properties, T),
-    #entity{id=Id,type=T,hitpoints = HP,x=X,y=Y,orient=bq_http:orient_by_id(Orient)};
-decode_spawn([2,Id,Type,X,Y]) -> #entity{id=Id,type=bq_http:entity_by_id(Type),x=X,y=Y}.
+    #entity{id=Id,type=T,hitpoints = HP,x=X,y=Y,orient=bq_msg:orient_by_id(Orient)};
+decode_spawn([2,Id,Type,X,Y]) -> #entity{id=Id,type=bq_msg:entity_by_id(Type),x=X,y=Y}.
 
 
 encode_spawn(#entity{type=Type,x=X,y=Y,id=Id,orient=Orient,name=Name,armor=Armor,weapon=Weapon}) ->
-    [2,Id,bq_http:entity_by_name(Type),X,Y] ++ if
+    [2,Id,bq_msg:entity_by_name(Type),X,Y] ++ if
         Type == warrior ->
-            [Name,bq_http:orient_by_name(Orient),bq_http:entity_by_name(Armor),bq_http:entity_by_name(Weapon)];
+            [Name,bq_msg:orient_by_name(Orient),bq_msg:entity_by_name(Armor),bq_msg:entity_by_name(Weapon)];
         Orient =/= undefined ->
-            [bq_http:orient_by_name(Orient)];
+            [bq_msg:orient_by_name(Orient)];
         true ->
             []
     end.    

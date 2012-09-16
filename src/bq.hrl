@@ -1,5 +1,4 @@
 -record(client, {
-    upstream,
     logged_in = false,
     armor,
     weapon,
