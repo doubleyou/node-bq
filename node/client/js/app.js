@@ -107,6 +107,8 @@ define(['jquery', 'storage'], function($, Storage) {
                     this.game.setServerOptions(config.build.host, config.build.port, username);
                 }
                 //>>includeEnd("prodHost");
+                
+                this.game.host = document.location.hostname;
 
                 this.center();
                 this.game.run(function() {
