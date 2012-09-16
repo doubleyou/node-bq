@@ -84,14 +84,12 @@ init(_) ->
     self() ! load_from_upstream,
     ets:new(bq_properties, [public, named_table,{keypos,#property.type}]),
     ets:new(?MODULE, [public,named_table,{keypos,#entity.id}]),
+    %% Let's make uniqs greater than 10000
+    ets:insert(?MODULE, {uniq, 10000}),
     {ok, #world{}}.
 
 unique_id() ->
-    Id = random:uniform(100000),
-    case ets:lookup(?MODULE, Id) of
-        [] -> Id;
-        [_] -> unique_id()
-    end.
+    gen_server:call(?MODULE, uniq).
 
 random_pos() ->
     gen_server:call(?MODULE, random_pos).
@@ -109,8 +107,9 @@ random_pos(#world{width = W, height = H, collisions = Collisions} = World) ->
                 [_|_] -> random_pos(World)
             end
     end.
-    
 
+handle_call(uniq, _From, World) ->
+    {reply, ets:update_counter(?MODULE, uniq, 1), World};
 handle_call(random_pos, _From, #world{} = World) ->
     {reply, random_pos(World), World};
 
