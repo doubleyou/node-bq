@@ -9,7 +9,8 @@
     orientation = random:uniform(4),
     checkpoint,
     hitpoints,
-    target
+    target,
+    health_ref
 }).
 
 

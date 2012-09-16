@@ -23,7 +23,8 @@ websocket_init(_TransportName, Req, Opts) ->
     % erlang:send_after(1000, self(), move),
     % FIXME: link and monitor
     {ok, Upstream} = websocket_client:start_link(proplists:get_value(upstream, Opts), ?MODULE, [self()]),
-    {ok, Req, #client{upstream = Upstream}}.
+    timer:send_interval(2000, regenerate),
+    {ok, Req, #client{upstream = Upstream, hitpoints = 100}}.
 
 websocket_handle({text, Msg}, Req, #client{upstream = Upstream} = State) ->
     Command = decode(Msg),
@@ -39,6 +40,13 @@ websocket_handle({text, Msg}, Req, #client{upstream = Upstream} = State) ->
     end.
     % {ok, Req, State}.
 
+websocket_info(regenerate, Req, State) ->
+    case bq_controller:regenerate(State) of
+        {reply, Reply, NewState} ->
+            reply(Reply, Req, NewState);
+        {noreply, NewState} ->
+            {ok, Req, NewState}
+    end;
 websocket_info(accept_client, Req, State) ->
     {reply, {text, <<"go">>}, Req, State};
 websocket_info({json, Msg}, Req, State) ->

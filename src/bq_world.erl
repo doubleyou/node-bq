@@ -119,7 +119,8 @@ handle_call({login, Name, Pid}, _From, State = #world{}) ->
     Entity = case ets:select(?MODULE, ets:fun2ms(fun(#entity{name = N} = E) when N == Name -> E end)) of
         [#entity{x = X, y = Y} = Entity_] -> Entity_#entity{pid = Pid};
         [] ->
-            {X,Y} = random_pos(State),
+            % {X,Y} = random_pos(State),
+            {X,Y} = {16,210},
             Entity_ = #entity{
                 id = unique_id(),
                 x = X,

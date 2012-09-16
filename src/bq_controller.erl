@@ -18,6 +18,7 @@
     ,hit/2
     ,hurt/2
     ,zone/2
+    ,regenerate/1
 ]).
 
 
@@ -33,7 +34,12 @@ handle([Command|Args], State) ->
 
 
 
+regenerate(#client{hitpoints = HP} = Client) when HP - 100 < 0 ->
+    HP1 = HP + 1,
+    {reply, [health, HP1, 1], Client#client{hitpoints = HP1}};
 
+regenerate(#client{hitpoints = HP} = Client) when HP - 100 >= 0 ->
+    {noreply, Client}.
 
 
 
