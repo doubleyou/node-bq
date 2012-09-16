@@ -715,6 +715,7 @@ function(InfoManager, BubbleManager, Renderer, Map, Animation, Sprite, AnimatedT
                 connecting = false; // always in dispatcher mode in the build version
     
             this.client = new GameClient(this.host, this.port);
+            this.client.ws_path = this.ws_path;
             
             //>>excludeStart("prodHost", pragmas.prodHost);
             var config = this.app.config.local || this.app.config.dev;

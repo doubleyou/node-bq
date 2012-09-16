@@ -109,6 +109,10 @@ define(['jquery', 'storage'], function($, Storage) {
                 //>>includeEnd("prodHost");
                 
                 this.game.host = document.location.hostname;
+                var proxy = $("input[name=\"proxy\"]").prop("checked");
+                if(proxy) {
+                    this.game.ws_path = "/proxy";
+                }
 
                 this.center();
                 this.game.run(function() {

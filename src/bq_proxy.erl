@@ -25,6 +25,8 @@ websocket_handle({text, Msg}, Req, Upstream) ->
 
 
 websocket_info({text, Msg}, Req, Upstream) ->
+    % Command = bq_msg:decode(Message),
+    lager:debug("nodejs> ~p", [Msg]),
     {reply, {text, Msg}, Req, Upstream}.
 
 
@@ -50,13 +52,11 @@ onmessage({close, Code}, Pid) ->
 %     {ok, Pid};
 
 onmessage({text, Message}, Pid) ->
-    Command = bq_msg:decode(Message),
-    lager:debug("nodejs> ~p", [Message]),
     %%% !!!!!!!!!!!!!!!!
     %%% !!!!!!!!!!!!!!!
     %%%  If uncomment next line, all Node replies will be proxies back to browser and everything will work.
     %%%  We don't want it 
-    % Pid ! {text, Message},
+    Pid ! {text, Message},
     {ok, Pid};
 
 onmessage({binary, Message}, Pid) ->
