@@ -22,8 +22,9 @@ decode(Text) when is_binary(Text) ->
 
 parse([hello,Name,Armor,Weapon]) -> [hello, Name, entity_by_id(Armor), entity_by_id(Weapon)];
 parse([spawn,Id,1,X,Y,Name,Orient,Armor,Weapon]) -> [spawn,Id,1,X,Y,Name,orient_by_id(Orient),entity_by_id(Armor),entity_by_id(Weapon)];
-parse([spawn,Id,Type,X,Y]) -> [spawn,Id,entity_by_id(Type),X,Y];
 parse([spawn,Id,Type,X,Y,Orient]) -> [spawn,Id,entity_by_id(Type),X,Y,orient_by_id(Orient)];
+parse([spawn,Id,Type,X,Y,Orient,Target]) -> [spawn,Id,entity_by_id(Type),X,Y,orient_by_id(Orient),Target];
+parse([spawn,Id,Type,X,Y|Rest]) -> [spawn,Id,entity_by_id(Type),X,Y|Rest];
 parse([drop,EntityId,DropId,Type,Haters]) -> [drop,EntityId,DropId,entity_by_id(Type),Haters];
 parse(Cmd) -> Cmd.
 
@@ -94,7 +95,7 @@ commands() ->
 entities() ->
     [none,warrior, rat, skeleton, goblin, ogre, spectre, crab, bat, wizard, eye, snake, skeleton2, boss, deathknight,
     none,none,none,none,none,
-    firfox, clotharmor, leatherarmor, mailarmor, platearmor, readarmor, goldenarmor,
+    firefox, clotharmor, leatherarmor, mailarmor, platearmor, readarmor, goldenarmor,
     none,none,none,none,none,none,none,none,
     flask, burger, chest, firepotion,cake,
     guard,kind,octocat,villagegirl,villager,priest,scientist,agent,rick,nyan,sorcerer,beachnpc,forestnpc,desertnpc,lavanpc,coder,

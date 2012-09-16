@@ -43,9 +43,9 @@ regenerate(#client{hitpoints = HP} = Client) when HP - 100 >= 0 ->
 
 
 
-hello([Name | _], #client{} = State) ->
+hello([Name, Armor, Weapon], #client{} = State) ->
     % gproc:reg({n, l, ID}),
-    {ok, {Id, X,Y,Hitpoints}} = bq_world:login(Name),
+    {ok, {Id, X,Y,Hitpoints}} = bq_world:login(Name, Armor, Weapon),
 
     lager:info("Client with id ~p connected", [Id]),
 

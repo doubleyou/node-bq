@@ -12,7 +12,7 @@
          terminate/2]).
 
 -export([
-    login/1
+    login/3
     ,list_id/0
     ,spawns/1
     ,entity/1
@@ -34,8 +34,8 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-login(Name) ->
-    gen_server:call(?MODULE, {login, Name, self()}).
+login(Name, Armor, Weapon) ->
+    gen_server:call(?MODULE, {login, Name, Armor, Weapon, self()}).
 
 list_id() ->
     ets:select(?MODULE, ets:fun2ms(fun(#entity{id = Id}) -> Id end)).
@@ -114,15 +114,21 @@ random_pos(#world{width = W, height = H, collisions = Collisions} = World) ->
 handle_call(random_pos, _From, #world{} = World) ->
     {reply, random_pos(World), World};
 
-handle_call({login, Name, Pid}, _From, State = #world{}) ->
+handle_call({login, Name, Armor, Weapon, Pid}, _From, State = #world{}) ->
     erlang:monitor(process,Pid),
     Entity = case ets:select(?MODULE, ets:fun2ms(fun(#entity{name = N} = E) when N == Name -> E end)) of
-        [#entity{x = X, y = Y} = Entity_] -> Entity_#entity{pid = Pid};
+        [#entity{x = X, y = Y, hitpoints = HP} = Entity_] -> Entity_#entity{pid = Pid};
         [] ->
             % {X,Y} = random_pos(State),
             {X,Y} = {16,210},
             Entity_ = #entity{
                 id = unique_id(),
+                name = Name,
+                type = warrior,
+                orient = down,
+                hitpoints = HP = 100,
+                armor = Armor,
+                weapon = Weapon,
                 x = X,
                 y = Y,
                 pid = Pid
@@ -134,7 +140,7 @@ handle_call({login, Name, Pid}, _From, State = #world{}) ->
     
     ets:insert(?MODULE, Entity),
     broadcast(encode_spawn(Entity)),
-    {reply, {ok, {Id,X,Y, 100}}, State};
+    {reply, {ok, {Id,X,Y, HP}}, State};
     
 handle_call({checkpoint,Id}, _From, #world{checkpoints = Checkpoints} = World) ->
     Reply = case lists:keyfind(Id,#checkpoint.id,Checkpoints) of

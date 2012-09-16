@@ -18,9 +18,9 @@ websocket_init(_TransportName, Req, _Opts) ->
     timer:send_interval(2000, regenerate),
     {ok, Req, #client{hitpoints = 100}}.
 
-websocket_handle({text, Msg}, Req, #client{} = State) ->
+websocket_handle({text, Msg}, Req, #client{id = Id} = State) ->
     Command = bq_msg:decode(Msg),
-    lager:debug("browser> ~p", [Command]),
+    lager:debug("user ~p> ~p", [Id,Command]),
 
     case bq_controller:handle(Command, State) of
         {reply, Reply, NewState} ->

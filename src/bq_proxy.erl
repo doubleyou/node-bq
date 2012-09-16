@@ -8,7 +8,10 @@
 
 -export([onopen/1, onmessage/2, onclose/1]).
 
-
+-record(proxy, {
+    upstream,
+    id
+}).
 
 
 init({tcp, http}, _Req, _Opts) ->
@@ -16,20 +19,24 @@ init({tcp, http}, _Req, _Opts) ->
 
 websocket_init(_TransportName, Req, Opts) ->
     {ok, Upstream} = websocket_client:start_link(proplists:get_value(upstream, Opts), ?MODULE, [self()]),
-    {ok, Req, Upstream}.
+    {ok, Req, #proxy{upstream = Upstream}}.
 
 
-websocket_handle({text, Msg}, Req, Upstream) ->
+websocket_handle({text, Msg}, Req, #proxy{id=Id,upstream = Upstream} = Proxy) ->
     Command = bq_msg:decode(Msg),
-    lager:debug("browser> ~p", [Command]),
+    lager:debug("user ~p> ~p", [Id,Command]),
     websocket_client:write(Upstream, {text, Msg}),
-    {ok, Req, Upstream}.
+    {ok, Req, Proxy}.
 
 
-websocket_info({text, Msg}, Req, Upstream) ->
+websocket_info({text, Msg}, Req, #proxy{} = Proxy) ->
     Command = bq_msg:decode(Msg),
-    lager:debug("nodejs> ~p", [Command]),
-    {reply, {text, Msg}, Req, Upstream}.
+    Id = case Command of
+        [welcome,Id_|_] -> Id_;
+        _ -> Proxy#proxy.id
+    end,
+    lager:debug("node ~p> ~p", [Id,Command]),
+    {reply, {text, Msg}, Req, Proxy#proxy{id = Id}}.
 
 
 websocket_terminate(_Reason, _Req, _State) ->
