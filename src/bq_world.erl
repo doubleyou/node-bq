@@ -13,11 +13,10 @@
          terminate/2]).
 
 -export([cmd/1,
+         broadcast/1,
          all_ids/0,
          total_players/0,
-         uniq/0,
-         lookup_actor/1,
-         broadcast/1]).
+         uniq/0]).
 
 -record(world, {
     height,
@@ -48,12 +47,6 @@ total_players() ->
 uniq() ->
     ets:update_counter(bq_util, uniq, 1).
 
-lookup_actor(Id) ->
-    case ets:lookup(bq_actors, Id) of
-        [Actor] -> Actor;
-        [] -> undefined
-    end.
-
 broadcast(Msg) ->
     lists:foreach(
         fun(ID) ->
@@ -62,12 +55,12 @@ broadcast(Msg) ->
         ets:select(bq_actors, ets:fun2ms(fun(#actor{id = Id, type=warrior}) -> Id end))
     ).
 
-cmd([check, Ids]) ->
+cmd([check | Ids]) ->
     %% FIXME: use ETS for checkpoints
     ok;
 cmd([who | Ids]) ->
-    RawActors = [lookup_actor(Id) || Id <- Ids],
-    Reply = [encode_actor(A) || A <- RawActors],
+    RawActors = [bq_actor:lookup(Id) || Id <- Ids],
+    Reply = [bq_actor:encode(A) || A <- RawActors],
     {ok, Reply};
 cmd([zone | _]) ->
     {ok, [list | all_ids()]};
@@ -81,13 +74,14 @@ cmd(Cmd) ->
 init(_) ->
     ets:new(bq_util, [public, named_table]),
     ets:new(bq_actors, [public, named_table, {keypos, 2}]),
-    ets:new(bq_properties, [public, named_table,{keypos,#property.type}]),
+    ets:new(bq_mobs_db, [public, named_table,{keypos,#property.type}]),
     ets:new(bq_names, [public, named_table, set]),
 
     ets:insert(bq_util, {uniq, 0}),
 
-    load_properties(),
+    load_mobs_db(),
     State = load_map(),
+    load_mobs(State#world.roaming_areas),
 
     {ok, State}.
 
@@ -105,6 +99,11 @@ handle_call([move, Id, X, Y], _From, World) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+handle_info(load_mobs, State) ->
+    %% FIXME: we should load mobs synchronously, before starting accepting 
+    %%        messages
+    spawn(fun() -> load_mobs(State#world.roaming_areas) end),
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -118,13 +117,13 @@ terminate(_Reason, _State) ->
 %% Internal functions
 %%
 
-load_properties() ->
+load_mobs_db() ->
     {ok,Bin} = file:read_file("node/server/js/properties.js"),
     {match, JSON} = re:run(Bin, "Properties = (\\{[^;]+\\});", [{capture,all_but_first,binary}]),
     {struct, Properties} = mochijson2:decode(re:replace(JSON, "(\\w+)\\:", "\"\\1\":", [global,noteol,{return,binary}])),
     lists:foreach(fun({Type, {struct,Props}}) ->
             Property = #property{drops = {struct,Drops}} = ?json2record(property,Props),
-            ets:insert(bq_properties, Property#property{
+            ets:insert(bq_mobs_db, Property#property{
                 type = binary_to_atom(Type,latin1),
                 drops = [{binary_to_atom(T,latin1),V} || {T,V} <- Drops]
             })
@@ -180,12 +179,17 @@ load_map() ->
         titlesize = proplists:get_value(<<"titlesize">>, Map)
     }.
 
-encode_actor(#actor{type=Type,x=X,y=Y,id=Id,orientation=Orient,modstate=MS}) ->
-    [spawn, Id, Type, X, Y] ++ if
-        Type =:= warrior ->
-            [MS#player.name, Orient, MS#player.armor, MS#player.weapon];
-        Orient =/= undefined ->
-            [Orient];
-        true ->
-            []
-    end.
+load_mobs(Areas) ->
+    lists:foreach(
+        fun(Area = #roaming_area{ id = AreaId, type = Type, nb = N }) ->
+            [bq_mob:add(uniq(), Type, AreaId, random_area_position(Area))
+                || _ <- lists:seq(1, N)]
+        end,
+        Areas
+    ).
+
+random_area_position(#roaming_area{x=X,y=Y,height=Height,width=Width}) ->
+    {
+        random:uniform(Width) + X,
+        random:uniform(Height) + Y
+    }.

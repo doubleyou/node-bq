@@ -11,7 +11,9 @@
          code_change/3,
          terminate/2]).
 
--export([pid/1]).
+-export([pid/1,
+         encode/1,
+         lookup/1]).
 
 -define(REGEN_INTERVAL, 2000).
 
@@ -26,6 +28,23 @@ start_link(Module, ActorState, ModOptions) ->
 
 pid(Id) ->
     gproc:where({n, l, {actor, Id}}).
+
+lookup(Id) ->
+    case ets:lookup(bq_actors, Id) of
+        [Actor] -> Actor;
+        [] -> undefined
+    end.
+
+encode(#actor{type=Type,x=X,y=Y,id=Id,orientation=Orient,modstate=MS,armor=Armor,weapon=Weapon}) ->
+    [spawn, Id, Type, X, Y] ++ if
+        Type =:= warrior ->
+            [MS#player.name, Orient, Armor, Weapon];
+        Orient =/= undefined ->
+            [Orient];
+        true ->
+            []
+    end.
+
 
 %%
 %% gen_server callbacks
@@ -44,6 +63,7 @@ init([Module, ActorState, ModOptions]) ->
             },
             ets:insert(bq_actors, State),
             async_regenerate(),
+            bq_world:broadcast(encode(State)),
             {ok, State};
         {stop, Reason} ->
             {stop, Reason}

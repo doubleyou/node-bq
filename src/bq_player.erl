@@ -12,23 +12,22 @@ by_name(Name) ->
     bq_actor:pid(id_by_name(Name)).
 
 start_link(Pid, Name, Armor, Weapon) ->
-    ActorState = case bq_world:lookup_actor(id_by_name(Name)) of
+    ActorState = case bq_actor:lookup(id_by_name(Name)) of
         undefined ->
             Id = bq_world:uniq(),
             ets:insert_new(bq_names, {Name, Id}),
             #actor{
                 id = Id,
-                type = warrior
+                type = warrior,
+                armor = Armor,
+                weapon = Weapon
             };
         AS ->
             AS
     end,
     State = #player{
-        id = ActorState#actor.id,
         name = Name,
-        client_pid = Pid,
-        armor = Armor,
-        weapon = Weapon
+        client_pid = Pid
     },
     bq_actor:start_link(?MODULE, ActorState, State).
 

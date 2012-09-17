@@ -10,15 +10,14 @@
     regen_rate = 1,
     haters = [],
     pid,
+    armor,
+    weapon,
     modstate
 }).
 
 -record(player, {
-    id,
     name,
-    client_pid,
-    armor,
-    weapon
+    client_pid
 }).
 
 -record(property, {
