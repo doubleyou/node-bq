@@ -17,7 +17,7 @@ start_link(Pid, Name, Armor, Weapon) ->
             Id = bq_world:uniq(),
             #actor{
                 id = Id,
-                type = player
+                type = warrior
             };
         AS ->
             AS

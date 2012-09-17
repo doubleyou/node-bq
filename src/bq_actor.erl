@@ -42,6 +42,7 @@ init([Module, ActorState, ModOptions]) ->
                 pid = self(),
                 modstate = ModState
             },
+            ets:insert(bq_actors, State),
             async_regenerate(),
             {ok, State};
         {stop, Reason} ->

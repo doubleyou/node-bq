@@ -6,11 +6,15 @@
          websocket_info/3,
          websocket_terminate/3]).
 
+-export([pid/1]).
+
 -record(state, {
     logged_in = false,
     id
 }).
 
+pid(Id) ->
+    gproc:where({n, l, {client, Id}}).
 
 init({tcp, http}, _Req, _Opts) ->
     {upgrade, protocol, cowboy_http_websocket}.
@@ -26,6 +30,7 @@ websocket_handle({text, Msg = <<"[0,",_/binary>>}, Req, State = #state{logged_in
     lager:info("Test ~p", [gproc:lookup_value({n, l, {player, Name}})]),
     Pid = bq_player:by_name(Name),
     [Id, X, Y, HP] = gen_server:call(Pid, get),
+    gproc:reg({n, l, {client, Id}}, self()),
 
     WelcomeMsg = [welcome, Id, Name, X, Y, HP],
 
@@ -36,15 +41,15 @@ websocket_handle({text, Msg = <<"[0,",_/binary>>}, Req, State = #state{logged_in
 
     self() ! {json, [PopulationMsg, ListMsg]},
     reply(WelcomeMsg, Req, State#state{logged_in = true, id = Id});
-websocket_handle({text, Msg}, Req, State) ->
+websocket_handle({text, Msg}, Req, State = #state{id = Id}) ->
     Command = bq_msg:decode(Msg),
-%%    lager:debug("user ~p> ~p", [Id,Command]),
+    lager:debug("user ~p> ~p", [Id,Command]),
 
-    case bq_character:handle(Command, State) of
-        {reply, Reply, NewState} ->
-            reply(Reply, Req, NewState);
-        {noreply, NewState} ->
-            {ok, Req, NewState}
+    case bq_msg:dispatch_command(Id, Command) of
+        {ok, Reply} ->
+            reply(Reply, Req, State);
+        _ ->
+            {ok, Req, State}
     end.
 
 websocket_info(accept_client, Req, State) ->

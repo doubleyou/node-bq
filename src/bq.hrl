@@ -20,3 +20,60 @@
     armor,
     weapon
 }).
+
+-record(property, {
+    type,
+    hp,
+    armor,
+    weapon,
+    drops = []
+}).
+
+-record(door, {
+    x,
+    y,
+    p,
+    tcx,
+    tcy,
+    to,
+    tx,
+    ty
+}).
+
+
+-record(checkpoint, {
+    id,
+    x,
+    y,
+    w,
+    h,
+    s
+}).
+
+-record(roaming_area, {
+    id,
+    x,
+    y,
+    width,
+    height,
+    type,
+    nb
+}).
+
+-record(chest_area, {
+    x,
+    y,
+    w,
+    h,
+    i,
+    tx,
+    ty
+}).
+
+-record(chest, {
+    x,
+    y,
+    i
+}).
+
+-define(json2record(Record, JSON), list_to_tuple([Record|[proplists:get_value(atom_to_binary(K,latin1),JSON) || K <- record_info(fields, Record)]])).

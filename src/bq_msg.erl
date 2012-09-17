@@ -7,6 +7,8 @@
 -export([entities/0, entity_by_id/1, entity_by_name/1]).
 -export([orients/0, orient_by_id/1, orient_by_name/1]).
 
+-export([dispatch_command/2]).
+
 
 -export([encode_atom/1]).
 
@@ -90,6 +92,22 @@ commands() ->
     [hello, welcome, spawn, despawn, move, lootmove, aggro, attack, hit,
     hurt, health, chat, loot, equip, drop, teleport, damage, population, kill, list,
     who, zone, destroy, hp, blink, open, check].
+
+commands_dispatch_table() ->
+    [
+        {move, bq_world},
+        {who, bq_world},
+        {check, bq_world}
+    ].
+
+dispatch_command(Id, [Cmd | Args]) ->
+    Pid = proplists:get_value(Cmd, commands_dispatch_table(), bq_actor:pid(Id)),
+    case Pid of
+        bq_world ->
+            gen_server:call(Pid, [Cmd, Id | Args]);
+        _ when is_pid(Pid) ->
+            gen_server:call(Pid, [Cmd | Args])
+    end.
 
 
 entities() ->
