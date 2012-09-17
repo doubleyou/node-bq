@@ -39,9 +39,10 @@ start_link(Pid, Name, Armor, Weapon) ->
 init(State) ->
     {ok, State}.
 
-handle_call([attack, TargetId], _From, State) ->
+handle_call([attack, TargetId], _From, State = #player{ name = Name }) ->
     %% FIXME: add to haters list
-    {reply, ok, State}.
+    Id = id_by_name(Name),
+    {reply, [[attack, TargetId, Id]], State}.
 
 %%
 %% Internal functions
