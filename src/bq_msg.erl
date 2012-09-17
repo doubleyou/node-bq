@@ -104,7 +104,7 @@ dispatch_command(Id, [Cmd | Args]) ->
     Pid = proplists:get_value(Cmd, commands_dispatch_table(), bq_actor:pid(Id)),
     case Pid of
         bq_world ->
-            gen_server:call(Pid, [Cmd, Id | Args]);
+            bq_world:cmd([Cmd, Id | Args]);
         _ when is_pid(Pid) ->
             gen_server:call(Pid, [Cmd | Args])
     end.

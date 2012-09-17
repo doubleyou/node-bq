@@ -12,7 +12,8 @@
          code_change/3,
          terminate/2]).
 
--export([all_ids/0,
+-export([cmd/1,
+         all_ids/0,
          total_players/0,
          uniq/0,
          lookup_actor/1,
@@ -61,6 +62,18 @@ broadcast(Msg) ->
         ets:select(bq_actors, ets:fun2ms(fun(#actor{id = Id, type=warrior}) -> Id end))
     ).
 
+cmd([check, Ids]) ->
+    %% FIXME: use ETS for checkpoints
+    ok;
+cmd([who | Ids]) ->
+    RawActors = [lookup_actor(Id) || Id <- Ids],
+    Reply = [encode_actor(A) || A <- RawActors],
+    {ok, Reply};
+cmd([zone | _]) ->
+    {ok, [list | all_ids()]};
+cmd(Cmd) ->
+    gen_server:call(?MODULE, Cmd).
+
 %%
 %% gen_server callbacks
 %%
@@ -69,6 +82,7 @@ init(_) ->
     ets:new(bq_util, [public, named_table]),
     ets:new(bq_actors, [public, named_table, {keypos, 2}]),
     ets:new(bq_properties, [public, named_table,{keypos,#property.type}]),
+    ets:new(bq_names, [public, named_table, set]),
 
     ets:insert(bq_util, {uniq, 0}),
 
@@ -77,13 +91,6 @@ init(_) ->
 
     {ok, State}.
 
-handle_call([check | _Ids], _From, World) ->
-    %%FIXME: move checkpoints to ETS and move this API to bq_player
-    {reply, ok, World};
-handle_call([who | Ids], _From, World) ->
-    RawActors = [lookup_actor(Id) || Id <- Ids],
-    Reply = [encode_actor(A) || A <- RawActors],
-    {reply, {ok, Reply}, World};
 handle_call([move, Id, X, Y], _From, World) ->
     %% TODO: actual map collisions should be here too
     case ets:select(bq_actors, ets:fun2ms(fun(#actor{id=Id_,x=X_,y=Y_}) when Id =/= Id_ andalso X =:= X_ andalso Y =:= Y_ -> ok end)) of

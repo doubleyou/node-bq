@@ -15,6 +15,7 @@ start_link(Pid, Name, Armor, Weapon) ->
     ActorState = case bq_world:lookup_actor(id_by_name(Name)) of
         undefined ->
             Id = bq_world:uniq(),
+            ets:insert_new(bq_names, {Name, Id}),
             #actor{
                 id = Id,
                 type = warrior
@@ -36,7 +37,6 @@ start_link(Pid, Name, Armor, Weapon) ->
 %%
 
 init(State) ->
-    gproc:reg({n, l, {player, State#player.name}}, State#player.id),
     {ok, State}.
 
 %%
@@ -44,7 +44,7 @@ init(State) ->
 %%
 
 id_by_name(Name) ->
-    try gproc:lookup_value({n, l, {player, Name}})
-    catch error:badarg ->
-        undefined
+    case ets:lookup(bq_names, Name) of
+        [{Name, Id}] -> Id;
+        [] -> undefined
     end.

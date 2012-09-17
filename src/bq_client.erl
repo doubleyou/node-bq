@@ -27,7 +27,6 @@ websocket_handle({text, Msg = <<"[0,",_/binary>>}, Req, State = #state{logged_in
     [hello, Name, Armor, Weapon] = bq_msg:decode(Msg),
     bq_player:start_link(self(), Name, Armor, Weapon),
 
-    lager:info("Test ~p", [gproc:lookup_value({n, l, {player, Name}})]),
     Pid = bq_player:by_name(Name),
     [Id, X, Y, HP] = gen_server:call(Pid, get),
     gproc:reg({n, l, {client, Id}}, self()),
