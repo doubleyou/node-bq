@@ -1,7 +1,9 @@
 -module(bq_actor).
 -behaviour(gen_server).
 
--export([start_link/4]).
+-include("bq.hrl").
+
+-export([start_link/3]).
 -export([init/1,
          handle_call/3,
          handle_cast/2,
@@ -9,111 +11,94 @@
          code_change/3,
          terminate/2]).
 
--export([lookup/1]).
--export([move/2,
-         damage/3]).
+-export([pid/1]).
 
 -define(REGEN_INTERVAL, 2000).
 
--define(REGENERATE, bq_actor_regenerate).
--define(MOVE, bq_actor_move).
--define(DAMAGE, bq_actor_damage).
-
--record(state, {
-    module,
-    id,
-    x = 0,
-    y = 0,
-    orientation = random:uniform(4),
-    hp = 100,
-    max_hp = 100,
-    regen_rate = 1,
-    modstate
-}).
+-define(REGENERATE, regenerate).
 
 %%
 %% External API
 %%
 
-start_link(Module, Id, ActorOptions, ModOptions) ->
-    gen_server:start_link(?MODULE, [Module, Id, ActorOptions, ModOptions], []).
+start_link(Module, ActorState, ModOptions) ->
+    gen_server:start_link(?MODULE, [Module, ActorState, ModOptions], []).
 
-move(Id, {X, Y}) ->
-    gen_server:call(lookup(Id), {?MOVE, X, Y}).
-
-damage(Id, From, Dmg) ->
-    gen_server:call(lookup(Id), {?DAMAGE, From, Dmg}).
+pid(Id) ->
+    gproc:where({n, l, {actor, Id}}).
 
 %%
 %% gen_server callbacks
 %%
 
-init([Module, Id, ActorOptions, ModOptions]) ->
+init([Module, ActorState, ModOptions]) ->
     process_flag(trap_exit, true),
+    Id = ActorState#actor.id,
+    gproc:reg({n, l, {actor, Id}}, self()),
     case Module:init(ModOptions) of
         {ok, ModState} ->
-            State = parse_options(ActorOptions, #state {
+            State = ActorState#actor {
                 module = Module,
-                id = Id,
+                pid = self(),
                 modstate = ModState
-            }),
+            },
             async_regenerate(),
             {ok, State};
         {stop, Reason} ->
             {stop, Reason}
     end.
 
-handle_call({?MOVE, X, Y}, _From, State) ->
-    {reply, ok, State#state{x = X, y = Y}};
-handle_call({?DAMAGE, FromId, Dmg}, _From, State = #state{ hp = HP }) ->
+handle_call(get, _From, State = #actor{ id = Id, x = X, y = Y, hp = HP }) ->
+    {reply, [Id, X, Y, HP], State};
+handle_call([hit, FromId, Dmg], _From, State = #actor{ hp = HP }) ->
     %% TODO: send damage/kill message
     NewHP = HP - Dmg,
-    NewState = State#state{hp = HP},
+    NewState = State#actor{hp = HP},
     case NewHP > 0 of
         true ->
             {reply, NewHP, NewState};
         false ->
-            {stop, died, NewHP, State#state{hp = NewHP}}
+            {stop, died, NewHP, State#actor{hp = NewHP}}
     end;
-handle_call(Msg, From, State = #state{module = Module, modstate = ModState}) ->
+handle_call(Msg, From, State = #actor{module = Module, modstate = ModState}) ->
     case Module:handle_call(Msg, From, ModState) of
         {reply, Reply, NewModState} ->
-            {reply, Reply, State#state{modstate=NewModState}};
+            {reply, Reply, State#actor{modstate=NewModState}};
         {noreply, NewModState} ->
-            {noreply, State#state{modstate=NewModState}};
+            {noreply, State#actor{modstate=NewModState}};
         {stop, Reason, NewModState} ->
-            {stop, Reason, State#state{modstate=NewModState}};
+            {stop, Reason, State#actor{modstate=NewModState}};
         {stop, Reason, Reply, NewModState} ->
-            {stop, Reason, Reply, State#state{modstate=NewModState}}
+            {stop, Reason, Reply, State#actor{modstate=NewModState}}
     end.
 
-handle_cast(Msg, State = #state{module = Module, modstate = ModState}) ->
+handle_cast(Msg, State = #actor{module = Module, modstate = ModState}) ->
     case Module:handle_cast(Msg, ModState) of
         {noreply, NewModState} ->
-            {noreply, State#state{modstate=NewModState}};
+            {noreply, State#actor{modstate=NewModState}};
         {stop, Reason, NewModState} ->
-            {stop, Reason, State#state{modstate=NewModState}};
+            {stop, Reason, State#actor{modstate=NewModState}};
         {stop, Reason, Reply, NewModState} ->
-            {stop, Reason, Reply, State#state{modstate=NewModState}}
+            {stop, Reason, Reply, State#actor{modstate=NewModState}}
     end.
 
-handle_info(?REGENERATE, State = #state{ hp = HP, max_hp = HP }) ->
+handle_info(?REGENERATE, State = #actor{ hp = HP, max_hp = HP }) ->
     %% FIXME: maybe start regeneration only when some damage is dealt
     %%        and not send regen message until then.
     async_regenerate(),
     {noreply, State};
-handle_info(?REGENERATE, State = #state{ hp = HP, regen_rate = Reg }) ->
+handle_info(?REGENERATE, State = #actor{ hp = HP, regen_rate = Reg }) ->
     async_regenerate(),
-    %% Send regen message
-    {noreply, State#state{hp = HP + Reg}};
-handle_info(Info, State = #state{module = Module, modstate = ModState}) ->
+    %% TODO: Send regen message
+    {noreply, State#actor{hp = HP + Reg}};
+handle_info(Info, State = #actor{module = Module, modstate = ModState}) ->
     case Module:handle_info(Info, ModState) of
         {noreply, NewModState} ->
-            {noreply, State#state{modstate=NewModState}};
+            {noreply, State#actor{modstate=NewModState}};
         {stop, Reason, NewModState} ->
-            {stop, Reason, State#state{modstate=NewModState}};
+            {stop, Reason, State#actor{modstate=NewModState}};
         {stop, Reason, Reply, NewModState} ->
-            {stop, Reason, Reply, State#state{modstate=NewModState}}
+            {stop, Reason, Reply, State#actor{modstate=NewModState}}
     end.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -125,22 +110,6 @@ terminate(_Reason, _State) ->
 %%
 %% Internal functions
 %%
-
-lookup(Id) ->
-    Id.
-
-parse_options([{x, X}|T], State) ->
-    parse_options(T, State#state{x=X});
-parse_options([{y, Y}|T], State) ->
-    parse_options(T, State#state{y=Y});
-parse_options([{orientation, Orientation}|T], State) ->
-    parse_options(T, State#state{orientation=Orientation});
-parse_options([{regen_rate, Reg}|T], State) ->
-    parse_options(T, State#state{regen_rate=Reg});
-parse_options([{hp, HP}|T], State) ->
-    parse_options(T, State#state{hp=HP,max_hp=HP});
-parse_options([], State) ->
-    State.
 
 async_regenerate() ->
     timer:send_after(self(), ?REGEN_INTERVAL, ?REGENERATE).

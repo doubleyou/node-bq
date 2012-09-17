@@ -75,5 +75,3 @@ onmessage({binary, Message}, Pid) ->
 
 onclose(Pid) ->
   {ok, Pid}.
-
-    
