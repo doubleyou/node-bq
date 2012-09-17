@@ -4,7 +4,8 @@
 
 -export([start_link/4]).
 
--export([init/1]).
+-export([init/1,
+         handle_call/3]).
 
 -export([by_name/1]).
 
@@ -37,6 +38,10 @@ start_link(Pid, Name, Armor, Weapon) ->
 
 init(State) ->
     {ok, State}.
+
+handle_call([attack, TargetId], _From, State) ->
+    %% FIXME: add to haters list
+    {reply, ok, State}.
 
 %%
 %% Internal functions

@@ -60,10 +60,11 @@ cmd([check | Ids]) ->
     ok;
 cmd([who | Ids]) ->
     RawActors = [bq_actor:lookup(Id) || Id <- Ids],
-    Reply = [bq_actor:encode(A) || A <- RawActors],
-    {ok, Reply};
+    [bq_actor:encode(A) || A <- RawActors];
 cmd([zone | _]) ->
-    {ok, [list | all_ids()]};
+    [list | all_ids()];
+cmd([aggro, Id, MobId]) ->
+    ok;
 cmd(Cmd) ->
     gen_server:call(?MODULE, Cmd).
 

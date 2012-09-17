@@ -45,7 +45,7 @@ websocket_handle({text, Msg}, Req, State = #state{id = Id}) ->
     lager:debug("user ~p> ~p", [Id,Command]),
 
     case bq_msg:dispatch_command(Id, Command) of
-        {ok, Reply} ->
+        Reply when is_list(Reply) ->
             reply(Reply, Req, State);
         _ ->
             {ok, Req, State}

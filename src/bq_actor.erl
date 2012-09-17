@@ -1,6 +1,7 @@
 -module(bq_actor).
 -behaviour(gen_server).
 
+-include_lib("stdlib/include/ms_transform.hrl").
 -include("bq.hrl").
 
 -export([start_link/3]).
@@ -71,16 +72,21 @@ init([Module, ActorState, ModOptions]) ->
 
 handle_call(get, _From, State = #actor{ id = Id, x = X, y = Y, hp = HP }) ->
     {reply, [Id, X, Y, HP], State};
-handle_call([hit, FromId, Dmg], _From, State = #actor{ hp = HP }) ->
-    %% TODO: send damage/kill message
+handle_call([hurt, TargetId], From, State = #actor{hp=HP, id=Id}) ->
+    Dmg = damage(TargetId),
     NewHP = HP - Dmg,
-    NewState = State#actor{hp = HP},
     case NewHP > 0 of
         true ->
-            {reply, NewHP, NewState};
+            {reply, [health, NewHP], State#actor{hp = NewHP}};
         false ->
-            {stop, died, NewHP, State#actor{hp = NewHP}}
+            bq_world:broadcast([[damage, Id, Dmg], [kill, Id], [despawn, Id]]),
+            %% TODO: Respawn here
+            {stop, ok, normal, State}
     end;
+handle_call([hit, TargetId], _From, State = #actor{id=Id, weapon=Weapon}) ->
+    Pid = pid(TargetId),
+    gen_server:call(Pid, [hurt, Id]),
+    {reply, [damage, TargetId, 5], State};
 handle_call(Msg, From, State = #actor{module = Module, modstate = ModState}) ->
     case Module:handle_call(Msg, From, ModState) of
         {reply, Reply, NewModState} ->
@@ -134,3 +140,6 @@ terminate(_Reason, _State) ->
 
 async_regenerate() ->
     timer:send_after(self(), ?REGEN_INTERVAL, ?REGENERATE).
+
+damage(_Id) ->
+    random:uniform(20) + 10.

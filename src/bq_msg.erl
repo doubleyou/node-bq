@@ -98,7 +98,8 @@ commands_dispatch_table() ->
         {move, bq_world},
         {who, bq_world},
         {zone, bq_world},
-        {check, bq_world}
+        {check, bq_world},
+        {aggro, bq_world}
     ].
 
 dispatch_command(Id, [Cmd | Args]) ->
