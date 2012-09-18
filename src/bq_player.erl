@@ -20,6 +20,8 @@ start_link(Pid, Name, Armor, Weapon) ->
             #actor{
                 id = Id,
                 type = warrior,
+                x = 16,
+                y = 210,
                 armor = Armor,
                 weapon = Weapon
             };

@@ -72,8 +72,10 @@ init([Module, ActorState, ModOptions]) ->
 
 handle_call(get, _From, State = #actor{ id = Id, x = X, y = Y, hp = HP }) ->
     {reply, [Id, X, Y, HP], State};
-handle_call([hurt, TargetId], From, State = #actor{hp=HP, id=Id}) ->
-    Dmg = damage(TargetId),
+
+handle_call([hurt, TargetId], _From, State = #actor{id=Id,armor=Armor,hp=HP}) ->
+    Weapon = gen_server:call(pid(TargetId), weapon),
+    Dmg = damage(Weapon, Armor),
     NewHP = HP - Dmg,
     case NewHP > 0 of
         true ->
@@ -81,12 +83,29 @@ handle_call([hurt, TargetId], From, State = #actor{hp=HP, id=Id}) ->
         false ->
             bq_world:broadcast([[damage, Id, Dmg], [kill, Id], [despawn, Id]]),
             %% TODO: Respawn here
-            {stop, ok, normal, State}
+            {stop, {died, NewHP}, normal, State}
     end;
-handle_call([hit, TargetId], _From, State = #actor{id=Id, weapon=Weapon}) ->
+
+handle_call([npchurt, Weapon], _From, State = #actor{id=Id,armor=Armor,hp=HP,type=Type}) ->
+    Dmg = damage(Weapon, Armor),
+    NewHP = HP - Dmg,
+    case NewHP > 0 of
+        true ->
+            {reply, Dmg, State#actor{hp = NewHP}};
+        false ->
+            bq_world:broadcast([[damage, Id, Dmg], [kill, bq_msg:entity_by_name(Type)], [despawn, Id]]),
+            %% TODO: Respawn here
+            {stop, normal, Dmg, State}
+    end;
+
+handle_call([hit, TargetId], _From, State = #actor{weapon=Weapon}) ->
     Pid = pid(TargetId),
-    gen_server:call(Pid, [hurt, Id]),
-    {reply, [damage, TargetId, 5], State};
+    Damage = gen_server:call(Pid, [npchurt, Weapon]),
+    {reply, [damage, TargetId, Damage], State};
+
+handle_call(weapon, _From, State = #actor{weapon = Weapon}) ->
+    {reply, Weapon, State};
+
 handle_call(Msg, From, State = #actor{module = Module, modstate = ModState}) ->
     case Module:handle_call(Msg, From, ModState) of
         {reply, Reply, NewModState} ->
@@ -141,5 +160,11 @@ terminate(_Reason, _State) ->
 async_regenerate() ->
     timer:send_after(self(), ?REGEN_INTERVAL, ?REGENERATE).
 
-damage(_Id) ->
-    random:uniform(20) + 10.
+damage(Weapon0, Armor0) ->
+    Weapon = bq_msg:weapon_lvl(Weapon0),
+    Armor = bq_msg:armor_lvl(Armor0),
+    Dealt = Weapon * (random:uniform(5) + 2),
+    Absorbed = Armor * (random:uniform(2) + 1),
+    Damage = Dealt - Absorbed,
+    if Damage < 0 -> random:uniform(3);
+    true -> Damage end.

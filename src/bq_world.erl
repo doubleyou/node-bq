@@ -55,7 +55,7 @@ broadcast(Msg) ->
         ets:select(bq_actors, ets:fun2ms(fun(#actor{id = Id, type=warrior}) -> Id end))
     ).
 
-cmd([check | Ids]) ->
+cmd([check | _Ids]) ->
     %% FIXME: use ETS for checkpoints
     ok;
 cmd([who | Ids]) ->
@@ -63,7 +63,7 @@ cmd([who | Ids]) ->
     [bq_actor:encode(A) || A <- RawActors];
 cmd([zone | _]) ->
     [list | all_ids()];
-cmd([aggro, Id, MobId]) ->
+cmd([aggro, _Id, _MobId]) ->
     ok;
 cmd(Cmd) ->
     gen_server:call(?MODULE, Cmd).
@@ -82,7 +82,7 @@ init(_) ->
 
     load_mobs_db(),
     State = load_map(),
-    load_mobs(State#world.roaming_areas),
+    load_mobs(State),
 
     {ok, State}.
 
@@ -138,7 +138,9 @@ load_map() ->
     {struct, Map} = mochijson2:decode(Bin),
     Width = proplists:get_value(<<"width">>, Map),
     Height = proplists:get_value(<<"height">>, Map),
-    Collisions = proplists:get_value(<<"collisions">>, Map),
+
+    Collisions = [index_to_position(I, Width) || I <- proplists:get_value(<<"collisions">>, Map)],
+
     Doors = lists:map(fun({struct, D}) ->
         ?json2record(door, D)
     end, proplists:get_value(<<"doors">>, Map)),
@@ -180,17 +182,36 @@ load_map() ->
         titlesize = proplists:get_value(<<"titlesize">>, Map)
     }.
 
-load_mobs(Areas) ->
+load_mobs(World = #world{roaming_areas=Areas, static_entities=StaticMobs, width=Width}) ->
     lists:foreach(
-        fun(Area = #roaming_area{ id = AreaId, type = Type, nb = N }) ->
-            [bq_mob:add(uniq(), Type, AreaId, random_area_position(Area))
+        fun(Area = #roaming_area{ type = Type, nb = N }) ->
+            [bq_mob:add(uniq(), Type, random_area_position(Area, World))
                 || _ <- lists:seq(1, N)]
         end,
         Areas
+    ),
+    lists:foreach(
+        fun({RawCoord, Type}) ->
+            bq_mob:add(uniq(), Type, index_to_position(RawCoord, Width))
+        end,
+        StaticMobs
     ).
 
-random_area_position(#roaming_area{x=X,y=Y,height=Height,width=Width}) ->
-    {
-        random:uniform(Width) + X,
-        random:uniform(Height) + Y
-    }.
+index_to_position(Index, W) ->
+    X = case Index rem W of
+        0 -> W - 1;
+        N -> N - 1
+    end,
+    Y = Index div W,
+    {X, Y}.
+
+random_area_position(Area = #roaming_area{x=X,y=Y,height=Height,width=Width}, World) ->
+    XX = random:uniform(Width) + X,
+    YY = random:uniform(Height) + Y,
+    case collides({XX, YY}, World) of
+        true -> random_area_position(Area, World);
+        false -> {XX, YY}
+    end.
+
+collides(Coord, #world{collisions = Collisions}) ->
+    lists:member(Coord, Collisions).

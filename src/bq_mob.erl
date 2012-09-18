@@ -2,19 +2,18 @@
 
 -include("bq.hrl").
 
--export([start_link/4]).
+-export([start_link/3]).
 -export([init/1]).
--export([add/4]).
+-export([add/3]).
 
 -record(mob, {
-    id,
-    area
+    aggro = []
 }).
 
-add(Id, Type, AreaId, {X, Y}) ->
-    bq_mob_sup:add_mob([Id, Type, AreaId, {X, Y}]).
+add(Id, Type, {X, Y}) ->
+    bq_mob_sup:add_mob([Id, Type, {X, Y}]).
 
-start_link(Id, Type, AreaId, {X, Y}) ->
+start_link(Id, Type, {X, Y}) ->
     [Props] = ets:lookup(bq_mobs_db, Type),
     HP = Props#property.hp,
     Armor = Props#property.armor,
@@ -28,10 +27,7 @@ start_link(Id, Type, AreaId, {X, Y}) ->
         armor = Armor,
         weapon = Weapon
     },
-    State = #mob{
-        id = Id,
-        area = AreaId
-    },
+    State = #mob{},
     bq_actor:start_link(?MODULE, ActorState, State).
 
 init(State) ->
