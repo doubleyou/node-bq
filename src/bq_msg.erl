@@ -12,6 +12,7 @@
 
 
 decode(<<"go">>) -> go;
+decode(<<"timeout">>) -> timeout;
 decode(Text) when is_binary(Text) ->
     List = mochijson2:decode(Text),
     case List of
@@ -46,7 +47,8 @@ dump([Cmd|_] = List) when is_list(Cmd) -> [<<(dump(C))/binary, "">> || C <- List
 
 
 
-
+encode(go) -> <<"go">>;
+encode(timeout) -> <<"timeout">>;
 encode(Msg) ->
     iolist_to_binary(mochijson2:encode(encode0(Msg))).
 
