@@ -13,6 +13,7 @@
          terminate/2]).
 
 -export([pid/1,
+         area/1,
          encode/1,
          lookup/1]).
 
@@ -46,6 +47,8 @@ encode(#actor{type=Type,x=X,y=Y,id=Id,orientation=Orient,modstate=MS,armor=Armor
             []
     end.
 
+area({X, Y}) ->
+    {(X-1) div 28, (Y-1) div 12}.
 
 %%
 %% gen_server callbacks
@@ -60,7 +63,8 @@ init([Module, ActorState, ModOptions]) ->
             State = ActorState#actor {
                 module = Module,
                 pid = self(),
-                modstate = ModState
+                modstate = ModState,
+                area = area({ActorState#actor.x, ActorState#actor.y})
             },
             ets:insert(bq_actors, State),
             async_regenerate(),
@@ -70,6 +74,21 @@ init([Module, ActorState, ModOptions]) ->
             {stop, Reason}
     end.
 
+handle_call([teleport, X, Y], _From, State = #actor{id = Id}) ->
+    bq_world:broadcast([teleport, Id, X, Y]),
+    handle_call([zone], _From, State#actor{x=X, y=Y});
+handle_call([move, X, Y], _From, State = #actor{id = Id}) ->
+    bq_world:broadcast([move, Id, X, Y]),
+    {reply, ok, State#actor{x=X, y=Y}};
+handle_call([loot, ItemId], _From, State) ->
+    %% TODO: update state, despawn the item
+    {reply, ok, State};
+handle_call([zone], _From, State = #actor{ x = X, y = Y, id = Id }) ->
+    NewArea = area({X, Y}),
+    lager:info("~p ~p", [{X, Y}, NewArea]),
+    ets:update_element(bq_actors, Id, [{#actor.area, NewArea}]),
+    Ids = bq_world:area_ids(NewArea),
+    {reply, [list | Ids], State#actor{area=NewArea}};
 handle_call(get, _From, State = #actor{ id = Id, x = X, y = Y, hp = HP }) ->
     {reply, [Id, X, Y, HP], State};
 

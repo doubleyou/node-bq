@@ -14,7 +14,7 @@
 
 -export([cmd/1,
          broadcast/1,
-         all_ids/0,
+         area_ids/1,
          total_players/0,
          uniq/0]).
 
@@ -38,8 +38,8 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-all_ids() ->
-    ets:select(bq_actors, ets:fun2ms(fun(#actor{id=Id}) -> Id end)).
+area_ids(AreaId) ->
+    ets:select(bq_actors, ets:fun2ms(fun(#actor{id=Id,area=AreaId_}) when AreaId =:= AreaId_ -> Id end)).
 
 total_players() ->
     length(ets:select(bq_actors, ets:fun2ms(fun(#actor{type=warrior}) -> ok end))).
@@ -61,8 +61,6 @@ cmd([check | _Ids]) ->
 cmd([who | Ids]) ->
     RawActors = [bq_actor:lookup(Id) || Id <- Ids],
     [bq_actor:encode(A) || A <- RawActors];
-cmd([zone | _]) ->
-    [list | all_ids()];
 cmd([aggro, _Id, _MobId]) ->
     ok;
 cmd(Cmd) ->
@@ -74,7 +72,7 @@ cmd(Cmd) ->
 
 init(_) ->
     ets:new(bq_util, [public, named_table]),
-    ets:new(bq_actors, [public, named_table, {keypos, 2}]),
+    ets:new(bq_actors, [public, named_table, {keypos,#actor.id}]),
     ets:new(bq_mobs_db, [public, named_table,{keypos,#property.type}]),
     ets:new(bq_names, [public, named_table, set]),
 
@@ -86,12 +84,17 @@ init(_) ->
 
     {ok, State}.
 
+handle_call([lootmove, Id, ItemId, X, Y], _From, World) ->
+    Pid = bq_actor:pid(Id),
+    gen_server:call(Pid, [move, X, Y]),
+    gen_server:call(Pid, [loot, ItemId]),
+    {reply, ok, World};
 handle_call([move, Id, X, Y], _From, World) ->
     %% TODO: actual map collisions should be here too
     case ets:select(bq_actors, ets:fun2ms(fun(#actor{id=Id_,x=X_,y=Y_}) when Id =/= Id_ andalso X =:= X_ andalso Y =:= Y_ -> ok end)) of
         [] ->
             ets:update_element(bq_actors, Id, [{#actor.x,X},{#actor.y,Y}]),
-            broadcast([move, Id, X, Y]),
+            gen_server:call(bq_actor:pid(Id), [move, X, Y]),
             {reply, ok, World};
         _ ->
             {reply, ok, World}
@@ -100,11 +103,6 @@ handle_call([move, Id, X, Y], _From, World) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info(load_mobs, State) ->
-    %% FIXME: we should load mobs synchronously, before starting accepting 
-    %%        messages
-    spawn(fun() -> load_mobs(State#world.roaming_areas) end),
-    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -195,13 +193,15 @@ load_mobs(World = #world{roaming_areas=Areas, static_entities=StaticMobs, width=
             bq_mob:add(uniq(), Type, index_to_position(RawCoord, Width))
         end,
         StaticMobs
-    ).
+    ),
+    ok.
 
 index_to_position(Index, W) ->
-    X = case Index rem W of
-        0 -> W - 1;
-        N -> N - 1
-    end,
+%%    X = case Index rem W of
+%%        0 -> W - 1;
+%%        N -> N - 1
+%%    end,
+    X = Index rem W,
     Y = Index div W,
     {X, Y}.
 

@@ -12,7 +12,8 @@
     pid,
     armor,
     weapon,
-    modstate
+    modstate,
+    area
 }).
 
 -record(player, {

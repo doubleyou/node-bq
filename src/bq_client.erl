@@ -36,7 +36,7 @@ websocket_handle({text, Msg = <<"[0,",_/binary>>}, Req, State = #state{logged_in
     TotalChars = bq_world:total_players(),
     PopulationMsg = [population, TotalChars, TotalChars],
 
-    ListMsg = [list | bq_world:all_ids()],
+    ListMsg = [list | bq_world:area_ids(bq_actor:area({X, Y}))],
 
     self() ! {json, [PopulationMsg, ListMsg]},
     reply(WelcomeMsg, Req, State#state{logged_in = true, id = Id});
