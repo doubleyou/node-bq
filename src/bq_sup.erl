@@ -19,5 +19,6 @@ start_link() ->
 %%
 
 init([]) ->
+    Mobs = ?CHILD(bq_mob_sup, supervisor),
     World = ?CHILD(bq_world, worker),
-    {ok, { {one_for_one, 5, 10}, [World]} }.
+    {ok, { {one_for_one, 5, 10}, [Mobs, World]} }.

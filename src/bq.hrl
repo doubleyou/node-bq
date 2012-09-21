@@ -1,34 +1,33 @@
--record(client, {
-    logged_in = false,
+-record(actor, {
+    id,
+    type,
+    module,
+    x = 16,
+    y = 210,
+    orientation = random:uniform(4),
+    hp = 100,
+    max_hp = 100,
+    regen_rate = 1,
+    haters = [],
+    pid,
     armor,
     weapon,
-    id,
-    x,
-    y,
-    orientation = random:uniform(4),
-    checkpoint,
-    hitpoints,
-    target,
-    health_ref
+    modstate,
+    area
 }).
 
-
-
--record(world, {
-    width,
-    height,
-    collisions = [],
-    doors = [],
-    checkpoints = [],
-    roaming_areas = [],
-    chest_areas = [],
-    static_chests = [],
-    static_entities = [],
-    titlesize,
-    buildings = [],
-    characters = []
+-record(player, {
+    name,
+    client_pid
 }).
 
+-record(property, {
+    type,
+    hp,
+    armor,
+    weapon,
+    drops = []
+}).
 
 -record(door, {
     x,
@@ -77,30 +76,4 @@
     i
 }).
 
-
--record(entity, {
-    id,
-    type,
-    x,
-    y,
-    orient,
-    name,
-    armor,
-    weapon,
-    pid,
-    hitpoints,
-    haters = [],
-    opts = []
-}).
-
-
--record(property, {
-    type,
-    hp,
-    armor,
-    weapon,
-    drops = []
-}).
-
 -define(json2record(Record, JSON), list_to_tuple([Record|[proplists:get_value(atom_to_binary(K,latin1),JSON) || K <- record_info(fields, Record)]])).
-

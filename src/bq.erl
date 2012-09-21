@@ -21,7 +21,7 @@ start() ->
             {mimetypes, {fun mimetypes:path_to_mimes/2, default}}
           ]},
           {[<<"proxy">>, '...'], bq_proxy, [{upstream, "http://localhost:8001/"}]},
-          {'_', bq_http, []}
+          {'_', bq_client, []}
         ]}
     ],
 
